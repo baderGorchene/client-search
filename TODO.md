@@ -10,10 +10,10 @@
   - Verification: `uv run pytest tests/test_database.py`
   - Status: Completed
 
-- [ ] **Task 3: Zero-Cost Discovery Engine (DuckDuckGo & Overpass)**
+- [x] **Task 3: Zero-Cost Discovery Engine (DuckDuckGo & Overpass)**
   - Objective: Implement `discovery/searcher.py` using `duckduckgo-search` and OpenStreetMap Overpass API for targeted ICP vertical queries.
   - Verification: `uv run pytest tests/test_searcher.py`
-  - Status: Pending
+  - Status: Completed
 
 - [ ] **Task 4: Web Extraction Pipeline (Crawl4AI)**
   - Objective: Implement `discovery/crawler.py` using Crawl4AI `AsyncWebCrawler` with SPA hydration and boilerplate/noise stripping to markdown.
