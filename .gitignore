@@ -1,5 +1,28 @@
+# Python virtual environment & bytecode
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Sensitive credentials & secrets
+.env
+.env.local
+.env.*
+!.env.example
+config/credentials.json
+config/token.json
+
+# Testing & Linting caches
 .pytest_cache/
 .ruff_cache/
-.venv/
-.env
-*__pycache__/
+.coverage
+htmlcov/
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

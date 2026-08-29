@@ -1,14 +1,14 @@
 # Development Roadmap
 
-- [ ] **Task 1: Environment & Project Foundation Setup** (Automated Tests Passed - Awaiting Human Validation)
+- [x] **Task 1: Environment & Project Foundation Setup**
   - Objective: Initialize project configuration, `.env.example`, `requirements.txt`, and `config/settings.py` with Pydantic Settings.
   - Verification: `uv run python -c "from config.settings import settings; print('Settings loaded')"`
-  - Status: Awaiting Human Validation
+  - Status: Completed
 
-- [ ] **Task 2: Pydantic Data Models & Database Layer**
+- [x] **Task 2: Pydantic Data Models & Database Layer**
   - Objective: Implement `evaluators/schemas.py` (`LeadEvaluation`, `EmailDraft`) and `database/client.py` / `database/queries.py` for Supabase/PostgreSQL schema and CRUD.
   - Verification: `uv run pytest tests/test_database.py`
-  - Status: Pending
+  - Status: Completed
 
 - [ ] **Task 3: Zero-Cost Discovery Engine (DuckDuckGo & Overpass)**
   - Objective: Implement `discovery/searcher.py` using `duckduckgo-search` and OpenStreetMap Overpass API for targeted ICP vertical queries.
