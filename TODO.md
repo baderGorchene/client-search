@@ -40,7 +40,7 @@
   - Verification: `uv run pytest tests/test_gmail_sender.py`
   - Status: Completed
 
-- [ ] **Task 9: Pipeline Orchestration, Scheduler & E2E Integration**
+- [x] **Task 9: Pipeline Orchestration, Scheduler & E2E Integration**
   - Objective: Wire end-to-end pipeline in `scheduler.py` (APScheduler) and `main.py` entrypoint with graceful shutdown and end-to-end testing.
   - Verification: `uv run pytest tests/test_pipeline_e2e.py`
-  - Status: Pending
+  - Status: Completed
