@@ -7,13 +7,13 @@ from enum import Enum
 from typing import Any
 from urllib.parse import urlparse
 
+import httpx
+from pydantic import BaseModel, Field
+
 try:
     from ddgs import DDGS
 except ImportError:
     from duckduckgo_search import DDGS  # type: ignore[no-redef]
-
-import httpx
-from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 

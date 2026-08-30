@@ -71,13 +71,4 @@ class LeadRecord(BaseModel):
 
     def to_db_dict(self) -> dict[str, Any]:
         """Convert record to a dict suitable for Supabase insertion/update."""
-        data = self.model_dump(exclude_none=True)
-        if isinstance(data.get("id"), UUID):
-            data["id"] = str(data["id"])
-        if isinstance(data.get("status"), LeadStatus):
-            data["status"] = data["status"].value
-        if isinstance(data.get("created_at"), datetime):
-            data["created_at"] = data["created_at"].isoformat()
-        if isinstance(data.get("updated_at"), datetime):
-            data["updated_at"] = data["updated_at"].isoformat()
-        return data
+        return self.model_dump(exclude_none=True, mode="json")

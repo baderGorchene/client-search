@@ -170,10 +170,10 @@ def clean_email(email: str) -> str:
     """Strip whitespace, mailto: prefix, and lowercase email address."""
     if not email:
         return ""
-    cleaned = email.strip()
-    if cleaned.lower().startswith("mailto:"):
-        cleaned = cleaned[7:]
-    return cleaned.split("?")[0].strip().lower()
+    addr = email.strip()
+    if addr.lower().startswith("mailto:"):
+        addr = addr[7:]
+    return addr.split("?")[0].strip().lower()
 
 
 def extract_domain(url_or_domain: str) -> str:
@@ -209,10 +209,9 @@ def is_role_based_email(email: str) -> bool:
     return local_part in ROLE_PREFIXES or normalized_local in ROLE_PREFIXES
 
 
-def is_disposable_domain(domain: str) -> str:
+def is_disposable_domain(domain: str) -> bool:
     """Check if the domain is a known temporary or disposable email service."""
-    clean_dom = domain.strip().lower()
-    return clean_dom in DISPOSABLE_DOMAINS
+    return domain.strip().lower() in DISPOSABLE_DOMAINS
 
 
 def parse_name_components(full_name: str) -> tuple[str, str]:

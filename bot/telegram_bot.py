@@ -39,10 +39,7 @@ def build_lead_review_card(
     lead_id: str | None = None,
 ) -> tuple[str, InlineKeyboardMarkup]:
     """Format Gate 1 Lead Review push notification message and inline buttons."""
-    if isinstance(lead_data, (LeadEvaluation, LeadRecord)):
-        data = lead_data.model_dump()
-    else:
-        data = dict(lead_data)
+    data = lead_data.model_dump() if hasattr(lead_data, "model_dump") else dict(lead_data)
 
     resolved_id = str(lead_id or data.get("id", ""))
     company_name = html.escape(data.get("company_name", "Target Prospect"))
@@ -90,10 +87,7 @@ def build_draft_review_card(
     lead_id: str | None = None,
 ) -> tuple[str, InlineKeyboardMarkup]:
     """Format Gate 2 Cold Outreach Draft Review notification message and inline buttons."""
-    if isinstance(lead_data, (LeadEvaluation, LeadRecord)):
-        data = lead_data.model_dump()
-    else:
-        data = dict(lead_data)
+    data = lead_data.model_dump() if hasattr(lead_data, "model_dump") else dict(lead_data)
 
     if isinstance(draft, EmailDraft):
         subject = draft.subject
