@@ -303,6 +303,52 @@ def test_app_state_execution_logs():
     assert state.current_step_description == ""
 
 
+def test_pipeline_nodes_progression():
+    """Verify node lifecycle transitions (pending -> active -> completed) and log binding."""
+    from ui.state import _process_node_log_update, get_initial_pipeline_nodes
+
+    nodes = get_initial_pipeline_nodes()
+    assert len(nodes) == 6
+    # All initially pending (deactivated)
+    for n in nodes:
+        assert n.status == "pending"
+        assert n.completed_time == ""
+        assert n.logs == []
+
+    # Step 1 active
+    nodes = _process_node_log_update(nodes, "🔍 [Step 1/6] Searching logistics prospects in Chicago...")
+    assert nodes[0].status == "active"
+    assert len(nodes[0].logs) == 1
+    assert nodes[1].status == "pending"
+
+    # Step 2 active -> Step 1 marked completed with timestamp
+    nodes = _process_node_log_update(nodes, "🧹 [Step 2/6] Checking deduplication: Apex Freight")
+    assert nodes[0].status == "completed"
+    assert nodes[0].completed_time != ""
+    assert nodes[1].status == "active"
+    assert len(nodes[1].logs) == 1
+
+    # Finish cycle -> All active/pending marked completed
+    nodes = _process_node_log_update(nodes, "🏁 [FINISH] Scouting cycle complete.")
+    for n in nodes:
+        assert n.status == "completed"
+        assert n.completed_time != ""
+
+
+def test_app_state_reset_pipeline_nodes():
+    state = AppState()
+    state.pipeline_nodes[0].status = "completed"
+    state.pipeline_nodes[0].completed_time = "12:00:00"
+    state.pipeline_nodes[0].logs = ["log 1"]
+
+    state.reset_pipeline_nodes()
+    assert len(state.pipeline_nodes) == 6
+    for n in state.pipeline_nodes:
+        assert n.status == "pending"
+        assert n.completed_time == ""
+        assert n.logs == []
+
+
 def test_ui_components_render():
     """Verify all UI components and pages compile into valid Reflex component structures."""
     nav_comp = navbar()

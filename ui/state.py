@@ -8,6 +8,7 @@ from typing import Any
 
 import reflex as rx
 from loguru import logger
+from pydantic import BaseModel, Field
 
 from config.settings import settings
 from database.client import get_supabase_client
@@ -22,6 +23,133 @@ from dispatch.gmail_sender import dispatch_approved_lead, get_daily_sent_count
 from evaluators.llm_service import generate_email_draft
 from evaluators.schemas import LeadEvaluation, LeadStatus
 from scheduler import run_scouting_pipeline
+
+
+class PipelineNode(BaseModel):
+    """Structured Pydantic schema representing a single scouting stage node."""
+
+    id: str
+    step_num: int
+    title: str
+    subtitle: str
+    status: str = "pending"  # "pending", "active", "completed", "error"
+    completed_time: str = ""
+    logs: list[str] = Field(default_factory=list)
+
+
+def get_initial_pipeline_nodes() -> list[PipelineNode]:
+    """Return clean list of 6 pipeline nodes in deactivated/pending state."""
+    return [
+        PipelineNode(
+            id="1",
+            step_num=1,
+            title="Discovery & Geo Search",
+            subtitle="DuckDuckGo & Overpass Geo API",
+            status="pending",
+            completed_time="",
+            logs=[],
+        ),
+        PipelineNode(
+            id="2",
+            step_num=2,
+            title="Deduplication & Cache",
+            subtitle="Supabase URL & Domain Check",
+            status="pending",
+            completed_time="",
+            logs=[],
+        ),
+        PipelineNode(
+            id="3",
+            step_num=3,
+            title="Web Extraction & Markdown",
+            subtitle="Crawl4AI & Playwright Chromium SPA",
+            status="pending",
+            completed_time="",
+            logs=[],
+        ),
+        PipelineNode(
+            id="4",
+            step_num=4,
+            title="Contact Verification Gate",
+            subtitle="Async DNS MX & Raw SMTP Sockets",
+            status="pending",
+            completed_time="",
+            logs=[],
+        ),
+        PipelineNode(
+            id="5",
+            step_num=5,
+            title="LLM Reasoning & Fit Scoring",
+            subtitle="Gemini 3.5 Flash ICP Bottleneck Analysis",
+            status="pending",
+            completed_time="",
+            logs=[],
+        ),
+        PipelineNode(
+            id="6",
+            step_num=6,
+            title="Mobile HITL Notification",
+            subtitle="Telegram Gate 1 Inline Review Card",
+            status="pending",
+            completed_time="",
+            logs=[],
+        ),
+    ]
+
+
+def _process_node_log_update(nodes: list[PipelineNode], msg: str) -> list[PipelineNode]:
+    """Assign incoming log line to active node and advance node lifecycle states."""
+    import datetime
+
+    current_time_str = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%S")
+    updated = [n.model_copy(deep=True) for n in nodes]
+
+    step_target: int | None = None
+    if "[Step 1/6]" in msg or ("Searching" in msg and "prospects" in msg):
+        step_target = 1
+    elif "[Step 2/6]" in msg or "Checking deduplication" in msg:
+        step_target = 2
+    elif "[Step 3/6]" in msg or "Crawling" in msg:
+        step_target = 3
+    elif "[Step 4/6]" in msg or "Verifying deliverable" in msg:
+        step_target = 4
+    elif "[Step 5/6]" in msg or "Evaluating" in msg:
+        step_target = 5
+    elif "[Step 6/6]" in msg or "Pushing Gate 1" in msg:
+        step_target = 6
+    elif "[FINISH]" in msg or "Scouting cycle complete" in msg or "complete" in msg.lower():
+        for n in updated:
+            if n.status in ("active", "pending"):
+                n.status = "completed"
+                if not n.completed_time:
+                    n.completed_time = current_time_str
+        return updated
+
+    if step_target is not None:
+        for n in updated:
+            if n.step_num < step_target:
+                if n.status != "completed":
+                    n.status = "completed"
+                    if not n.completed_time:
+                        n.completed_time = current_time_str
+            elif n.step_num == step_target:
+                n.status = "active"
+                n.logs.append(msg)
+            else:
+                if n.status != "completed":
+                    n.status = "pending"
+    else:
+        active_found = False
+        for n in updated:
+            if n.status == "active":
+                n.logs.append(msg)
+                active_found = True
+                break
+        if not active_found and updated:
+            updated[0].status = "active"
+            updated[0].logs.append(msg)
+
+    return updated
 
 
 class AppState(rx.State):
@@ -40,6 +168,7 @@ class AppState(rx.State):
     active_lead_action_id: str = ""
     current_step_description: str = ""
     execution_logs: list[str] = []  # noqa: RUF012
+    pipeline_nodes: list[PipelineNode] = get_initial_pipeline_nodes()
 
     # Search & Filtering
     search_query: str = ""
@@ -255,6 +384,7 @@ class AppState(rx.State):
     async def trigger_scouting(self):  # type: ignore[no-untyped-def]
         """Execute a one-shot prospect scouting cycle with real-time log streaming."""
         self.is_scouting = True
+        self.pipeline_nodes = get_initial_pipeline_nodes()
         self.execution_logs = ["🚀 [INIT] Starting background scouting cycle..."]
         self.current_step_description = "Starting scouting cycle..."
         self.status_message = f"Running discovery for {self.scout_vertical} in {self.scout_location}..."
@@ -281,6 +411,7 @@ class AppState(rx.State):
                 msg = await asyncio.wait_for(queue.get(), timeout=0.1)
                 self.execution_logs.append(msg)
                 self.current_step_description = msg
+                self.pipeline_nodes = _process_node_log_update(self.pipeline_nodes, msg)
                 yield
             except TimeoutError:
                 yield
@@ -291,20 +422,32 @@ class AppState(rx.State):
                 f"Scouting complete: Found {stats.get('discovered', 0)}, "
                 f"Qualified {stats.get('qualified', 0)} new prospects."
             )
+            self.pipeline_nodes = _process_node_log_update(self.pipeline_nodes, "[FINISH] Complete")
         except Exception as exc:  # noqa: BLE001
             logger.exception("Scouting execution failed")
             self.status_message = f"Scouting failed: {exc}"
             self.execution_logs.append(f"❌ Execution error: {exc}")
+            err_nodes = [n.model_copy(deep=True) for n in self.pipeline_nodes]
+            for n in err_nodes:
+                if n.status == "active":
+                    n.status = "error"
+                    n.logs = list(n.logs) + [f"❌ Execution error: {exc}"]
+            self.pipeline_nodes = err_nodes
         finally:
             self.is_scouting = False
 
         yield
         await self.fetch_leads()
 
-    def clear_execution_logs(self) -> None:
-        """Clear execution log history."""
+    def reset_pipeline_nodes(self) -> None:
+        """Reset all nodes back to initial deactivated pending state."""
+        self.pipeline_nodes = get_initial_pipeline_nodes()
         self.execution_logs = []
         self.current_step_description = ""
+
+    def clear_execution_logs(self) -> None:
+        """Clear execution log history and reset nodes."""
+        self.reset_pipeline_nodes()
 
     def set_active_tab(self, tab_name: str) -> None:
         self.active_tab = tab_name
