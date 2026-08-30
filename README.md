@@ -1,4 +1,26 @@
-# Automated Client Scouting & Outreach Engine
+<div align="center">
+  <img src="assets/logo.jpg" alt="ClientSearch Logo" width="160" style="border-radius: 24px; box-shadow: 0 8px 30px rgba(0,0,0,0.6);" />
+  
+  # ClientSearch
+  ### Autonomous Zero-Cost B2B Client Scouting & HITL Outreach Engine
+
+  <p align="center">
+    <a href="https://python.org"><img src="https://img.shields.io/badge/Python-3.12+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.12+" /></a>
+    <a href="https://github.com/astral-sh/uv"><img src="https://img.shields.io/badge/uv-Fast%20Packaging-DE5FE9?style=for-the-badge&logo=astral&logoColor=white" alt="uv" /></a>
+    <a href="https://ai.google.dev"><img src="https://img.shields.io/badge/Google%20AI-Gemini%203.5%20Flash-4285F4?style=for-the-badge&logo=google&logoColor=white" alt="Google Gemini" /></a>
+    <a href="https://litellm.ai"><img src="https://img.shields.io/badge/Router-LiteLLM-FF6B6B?style=for-the-badge&logo=fastapi&logoColor=white" alt="LiteLLM" /></a>
+    <a href="https://reflex.dev"><img src="https://img.shields.io/badge/Web%20UI-Reflex%200.7+-6E56CF?style=for-the-badge&logo=react&logoColor=white" alt="Reflex" /></a>
+    <a href="https://core.telegram.org/bots"><img src="https://img.shields.io/badge/Mobile%20HITL-Telegram%20Bot-24A1DE?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram Bot" /></a>
+    <a href="https://supabase.com"><img src="https://img.shields.io/badge/Database-Supabase%20PostgreSQL-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white" alt="Supabase" /></a>
+    <a href="https://crawl4ai.com"><img src="https://img.shields.io/badge/Crawler-Crawl4AI%20%2B%20Playwright-2EAD33?style=for-the-badge&logo=playwright&logoColor=white" alt="Crawl4AI" /></a>
+    <a href="https://developers.google.com/gmail/api"><img src="https://img.shields.io/badge/Outbox-Gmail%20API%20OAuth2-EA4335?style=for-the-badge&logo=gmail&logoColor=white" alt="Gmail API" /></a>
+    <a href="https://github.com/Delgan/loguru"><img src="https://img.shields.io/badge/Logging-Loguru-00D26A?style=for-the-badge&logo=python&logoColor=white" alt="Loguru" /></a>
+    <a href="https://docs.pytest.org"><img src="https://img.shields.io/badge/Tests-124%20Passed-success?style=for-the-badge&logo=pytest&logoColor=white" alt="Pytest" /></a>
+    <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/badge/Linter-Ruff%20Clean-brightgreen?style=for-the-badge&logo=ruff&logoColor=white" alt="Ruff" /></a>
+  </p>
+</div>
+
+---
 
 An autonomous, semi-supervised client prospecting system engineered for Full-Stack AI Engineers to acquire high-value B2B automation clients with **$0 infrastructure spend**.
 
@@ -17,6 +39,7 @@ The engine automates heavy cognitive lifting—target discovery, JavaScript-rend
   - **Gate 2 (Email Review & Edit)**: Push card displaying generated Subject Line & 3-sentence Pitch Body with `[🚀 Confirm & Send]`, `[✏️ Edit Copy]` (direct in-chat reply editing), and `[❌ Cancel]`.
 - **Safe Outbox Dispatcher**: Dispatches approved emails via official Gmail API (OAuth2) with 10–25 minute random jitter, business hours validation ($09:00–17:00$), and hard daily volume limits ($5–15$ emails/day).
 - **Managed Persistence**: Supabase (PostgreSQL) database with Row-Level Security (RLS) enabled and backend execution via `service_role` key.
+- **Operations Dashboard**: Pure Python reactive web interface powered by Reflex featuring real-time terminal log streaming, Kanban boards, and modal copy editors.
 
 ---
 
@@ -96,12 +119,34 @@ The engine automates heavy cognitive lifting—target discovery, JavaScript-rend
 
 ---
 
+## 🛠️ Tech Stack & Infrastructure
+
+| Layer | Technology | Purpose | Zero-Cost Benefit |
+| :--- | :--- | :--- | :--- |
+| **Language & Runtime** | Python 3.12+ (AsyncIO) | Asynchronous core engine | High concurrency, zero runtime license fees |
+| **Package Management** | `uv` / Astral | Blazing fast dependency resolution | Zero install latency, strict virtualenv |
+| **Web UI & Dashboard** | `reflex` | Reactive CRM, Kanban & real-time log console | Full-stack Python with React/Next.js output |
+| **Mobile HITL Interface** | `python-telegram-bot` (v21+) | Mobile push approvals & reply-to-edit | Zero hosting, instant lock-screen notifications |
+| **LLM Reasoning Router** | `litellm` + Gemini 3.5 Flash | Bottleneck extraction & 3-sentence copywriting | Google AI Studio Free Tier (1M+ token context) |
+| **Fallback LLM** | Gemini 3.5 Flash-Lite | Secondary failover during rate limits | High-speed, unmetered fallback |
+| **Web Extraction** | `crawl4ai` + `playwright` | Headless SPA rendering & markdown conversion | Zero third-party web scraping API credits |
+| **Discovery Search** | `duckduckgo-search` / Overpass | Keyword search & geographic coordinate filtering | Zero SerpAPI fees |
+| **Email Verification** | `py3-validate-email` + `dnspython` | Async DNS MX records & direct SMTP handshake | Local socket verification ($0.00 / no NeverBounce) |
+| **Persistence** | Supabase (PostgreSQL) | Managed database & Row-Level Security | Free Tier cloud PostgreSQL |
+| **Outbox Dispatcher** | Gmail API (OAuth2) | Email delivery with safety jitter & daily limits | Official Google OAuth2, zero SendGrid/Resend cost |
+| **Logging & Intercept** | `loguru` | Structured colorized logging & stdlib intercept | Thread-safe, formatted, rotatable logging |
+| **Testing & Quality** | `pytest` + `ruff` | Automated test suite & instant linting | 124 unit/integration tests passing |
+
+---
+
 ## 📂 Project Structure
 
 ```text
 client-search/
+├── assets/                  # Brand assets (logo.jpg, favicon.ico)
 ├── config/
 │   ├── settings.py          # Pydantic Settings & environment validation
+│   ├── logging.py           # Centralized Loguru logger setup & interceptor
 │   ├── credentials.json     # Gmail OAuth2 client secrets (gitignored)
 │   └── token.json           # Stored Gmail user token (gitignored)
 ├── database/
@@ -121,8 +166,14 @@ client-search/
 │   └── callbacks.py         # Gate 1 & Gate 2 interactive button handlers
 ├── dispatch/
 │   └── gmail_sender.py      # Gmail API OAuth2 dispatch with jitter & volume control
-├── tests/                   # 111 Pytest unit and E2E integration tests
-├── docs/task-logs/          # Architectural decisions & task reports (Tasks 1-9)
+├── ui/                      # Reflex reactive web application & operator dashboard
+│   ├── components/          # Reusable UI cards, tables, Kanban & log console
+│   ├── pages/               # Dashboard, Leads review & Settings views
+│   ├── state.py             # Reactive state manager & event handlers
+│   └── ui.py                # Reflex application entry point
+├── rxconfig.py              # Reflex configuration & Radix themes
+├── tests/                   # 124 Pytest unit, UI, and E2E integration tests
+├── docs/task-logs/          # Architectural decisions & task reports (Tasks 1-10)
 ├── scheduler.py             # Periodic background scouting pipeline runner
 ├── main.py                  # CLI entrypoint & service lifecycle manager
 ├── requirements.txt         # Pinned production & development dependencies

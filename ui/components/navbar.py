@@ -10,7 +10,7 @@ def navbar() -> rx.Component:
     return rx.box(
         rx.hstack(
             rx.hstack(
-                rx.icon("bot", size=26, color="#3b82f6"),
+                rx.image(src="/logo.jpg", width="34px", height="34px", border_radius="0.5rem", border="1px solid #334155"),
                 rx.vstack(
                     rx.heading("Client Search", size="4", weight="bold", color="white"),
                     rx.text("Autonomous B2B Scouting & HITL Outreach", size="1", color="#94a3b8"),
