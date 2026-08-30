@@ -6,6 +6,7 @@
 - **Web Crawling & Discovery**: `crawl4ai` (AsyncWebCrawler), `duckduckgo-search`, `playwright`
 - **LLM Gateway & Schemas**: `litellm` (Gemini 3.7 Flash primary, Groq Llama 3.3 70B fallback), `pydantic` v2
 - **Telegram HITL Interface**: `python-telegram-bot` (v21+ async handlers & inline keyboards)
+- **Web UI & Operations Dashboard**: `reflex` (Pure Python reactive web apps & Tailwind components)
 - **Database & Storage**: `supabase` (PostgreSQL async queries & connection pooling)
 - **Email Verification & Dispatch**: `py3-validate-email`, `dnspython`, `google-api-python-client` (Gmail API OAuth2)
 - **Scheduling**: `apscheduler`
@@ -35,6 +36,11 @@
 │   └── callbacks.py         # Gate 1 (Lead Review) & Gate 2 (Draft Review) handlers
 ├── dispatch/
 │   └── gmail_sender.py      # Gmail API OAuth2 dispatch with jitter & volume control
+├── ui/                      # Reflex reactive web application & operator dashboard
+│   ├── components/          # Reusable UI cards, tables, and metric badges
+│   ├── state.py             # Reflex reactive state and event handlers
+│   └── pages/               # Dashboard, Leads review, and Settings views
+├── rxconfig.py              # Reflex application configuration
 ├── tests/                   # Pytest test suite with mocks
 ├── scheduler.py             # Periodic background scouting pipeline runner
 ├── main.py                  # CLI entrypoint & service lifecycle manager
@@ -48,6 +54,7 @@
 - **Playwright Setup**: `uv run playwright install --with-deps chromium`
 - **Run Unit & Integration Tests**: `uv run pytest`
 - **Run Targeted Test**: `uv run pytest tests/test_discovery.py`
+- **Run Reflex Web UI**: `uv run reflex run`
 - **Lint & Format**: `uv run ruff check .`
 
 ## Context Boundaries

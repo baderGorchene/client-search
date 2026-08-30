@@ -44,3 +44,8 @@
   - Objective: Wire end-to-end pipeline in `scheduler.py` (APScheduler) and `main.py` entrypoint with graceful shutdown and end-to-end testing.
   - Verification: `uv run pytest tests/test_pipeline_e2e.py`
   - Status: Completed
+
+- [ ] **Task 10: Interactive Web Dashboard with Reflex**
+  - Objective: Implement pure-Python reactive web dashboard using Reflex (`ui/`, `rxconfig.py`) featuring live pipeline Kanban boards (Gate 1 & Gate 2), scouting trigger controls, email preview/editor, and metrics dashboard linked to Supabase.
+  - Verification: `uv run python -c "import reflex; print('Reflex ready')"` and `uv run pytest tests/test_ui.py`
+  - Status: Pending

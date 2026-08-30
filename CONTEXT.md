@@ -212,6 +212,16 @@ The system automates the heavy cognitive lifting—target discovery, dynamic web
 * **Volume Cap:** Strictly limited to **5 to 15 hand-approved emails/day**.  
 * **Sending Pacing:** Random jitter (10–25 minutes) between approved dispatches during target business hours (09:00–17:00).
 
+### Subsystem 6: Interactive Operations & Analytics Dashboard (`ui/`)
+
+* **Framework:** [**Reflex**](https://reflex.dev/) (Pure-Python reactive web framework with compiled Next.js/Tailwind frontend).  
+* **Pipeline Kanban & Review Board:** Real-time visual tracking of leads across all stages (`PENDING_LEAD_REVIEW`, `DRAFT_GENERATED`, `EMAIL_SENT`, `REPLIED_INTERESTED`, `LEAD_REJECTED`, `DRAFT_REJECTED`).  
+* **Interactive Operations:**  
+  * Trigger immediate one-shot scouting cycles with custom vertical and geographic parameters.  
+  * Manual review & qualification of Gate 1 leads with pros/cons breakdown and score adjustments.  
+  * Rich draft editor to review, edit, and approve Gate 2 cold pitches before dispatch.  
+  * Real-time KPI charts and deliverability health metrics linked to Supabase.
+
 ---
 
 ## 5\. PostgreSQL / Supabase Database Schema
@@ -332,9 +342,21 @@ client\_scouting\_engine/
 
 │
 
-├── scheduler.py                 \# APScheduler loop / Celery task runner
+├── ui/                          \# Reflex pure-Python web application
 
-├── main.py                      \# Application entry point
+│   ├── components/              \# Kanban cards, metric badges, charts
+
+│   ├── pages/                   # Dashboard, pipeline review, settings
+
+│   └── state.py                 \# Reactive state & async event handlers
+
+│
+
+├── rxconfig.py                  \# Reflex configuration
+
+├── scheduler.py                 \# APScheduler loop / background runner
+
+├── main.py                      \# Application entry point & CLI manager
 
 ├── .env.example                 \# Config template
 
@@ -365,6 +387,10 @@ pydantic\>=2.10.0
 \# Telegram Bot Interface
 
 python-telegram-bot\[http2\]\>=21.9
+
+\# Web UI & Dashboard
+
+reflex\>=0.7.0
 
 \# Database & Async Client
 
@@ -436,6 +462,7 @@ MIN\_LEAD\_FIT\_SCORE=7
 | **Web Extraction** | **Crawl4AI** | Firecrawl / Playwright | Strips HTML boilerplate directly into clean markdown for LLMs without cloud credits. |
 | **Lead Discovery** | **`duckduckgo-search`** | Paid SerpAPI | Unmetered keyword search without credit caps or billing requirements. |
 | **HITL Controller** | **Telegram Bot** | Next.js Dashboard | Instant lock-screen mobile push approvals; zero frontend hosting required. |
+| **Web UI Dashboard** | **Reflex (Pure Python)** | Custom React / Streamlit | Full-stack reactive web apps entirely in Python without frontend toolchain overhead. |
 | **Verification** | **`py3-validate-email`** | Paid NeverBounce | Local async SMTP socket handshake verifies mailbox existence for $0.00. |
 | **Database** | **Supabase (Postgres)** | Local SQLite | Managed PostgreSQL cloud database with visual dashboard accessible from anywhere. |
 | **Architecture** | **Modular Monolith** | Microservices | Zero inter-service network latency, single process, $0 hosting cost, easy local debugging. |

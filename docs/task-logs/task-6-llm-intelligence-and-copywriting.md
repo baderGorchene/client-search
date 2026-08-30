@@ -5,14 +5,14 @@
 
 ## 1. Overview & Summary
 - Implemented an asynchronous intelligence evaluation and cold outreach copywriting engine in `evaluators/llm_service.py` using LiteLLM.
-- Configured a dual-provider zero-cost routing architecture leveraging Google AI Studio (Gemini 2.0 Flash) as the primary fast reasoning engine and Groq Cloud (Llama 3.3 70B Versatile) as an automated high-throughput fallback.
+- Configured a dual-provider zero-cost routing architecture leveraging Google AI Studio (Gemini 3.7 Flash) as the primary fast reasoning engine and Groq Cloud (Llama 3.3 70B Versatile) as an automated high-throughput fallback.
 - Enforced strict Pydantic v2 structured schemas for lead qualification (`LeadEvaluation`) against our ICP (automating invoice/waybill OCR, inbound booking agents, and operations dashboards across logistics, real estate, and boutique e-commerce) and 3-sentence high-converting cold email drafting (`EmailDraft`).
 
 ## 2. Code Changes & Files Touched
 - [evaluators/llm_service.py](file:///home/bunshee/Projects/client-search/evaluators/llm_service.py):
   - Defined system prompts ([`LEAD_EVALUATION_SYSTEM_PROMPT`](file:///home/bunshee/Projects/client-search/evaluators/llm_service.py#L21) and [`EMAIL_DRAFTING_SYSTEM_PROMPT`](file:///home/bunshee/Projects/client-search/evaluators/llm_service.py#L52)) enforcing zero-cost workflow automation criteria, bottleneck extraction, and 3-sentence value pitches.
   - Implemented [`clean_json_response`](file:///home/bunshee/Projects/client-search/evaluators/llm_service.py#L76) to sanitize raw model completions, remove markdown code blocks (` ```json...``` `), and extract clean JSON payloads.
-  - Implemented [`call_llm_with_fallback`](file:///home/bunshee/Projects/client-search/evaluators/llm_service.py#L97) routing requests to `gemini/gemini-2.0-flash` with automatic failover to `groq/llama-3.3-70b-versatile` upon errors or rate limits.
+  - Implemented [`call_llm_with_fallback`](file:///home/bunshee/Projects/client-search/evaluators/llm_service.py#L97) routing requests to `gemini/gemini-3.7-flash` with automatic failover to `groq/llama-3.3-70b-versatile` upon errors or rate limits.
   - Implemented [`evaluate_lead`](file:///home/bunshee/Projects/client-search/evaluators/llm_service.py#L169) for scoring target fit ($1–10$), extracting executive contact roles, generating operational summaries, and pinpointing automation pros/cons.
   - Implemented [`generate_email_draft`](file:///home/bunshee/Projects/client-search/evaluators/llm_service.py#L218) for generating punchy, lowercase subject lines (<50 chars) and 3-sentence personalized cold pitches (<600 chars).
 - [evaluators/__init__.py](file:///home/bunshee/Projects/client-search/evaluators/__init__.py):
@@ -22,7 +22,7 @@
 - [TODO.md](file:///home/bunshee/Projects/client-search/TODO.md): Marked Task 6 as completed.
 
 ## 3. Key Technical & Architectural Decisions
-- **Decision Made**: Dual-provider LiteLLM router (Gemini 2.0 Flash primary + Groq Llama 3.3 70B fallback).
+- **Decision Made**: Dual-provider LiteLLM router (Gemini 3.7 Flash primary + Groq Llama 3.3 70B fallback).
 - **Why This Option Was Selected**: Google AI Studio provides unmetered/generous free-tier limits with strong instruction-following for structured outputs. Groq Cloud provides ultrafast (~280 tok/s) open-weights inference as an instant fallback during temporary Google API rate limits or outages, ensuring 100% pipeline reliability at $0.00 infrastructure cost.
 - **Alternatives Considered**: Direct Google Generative AI SDK / OpenAI SDK (locked the codebase to a single vendor and required complex custom multi-provider fallback logic).
 - **Decision Made**: Strict Pydantic v2 structured JSON schema validation with JSON fence sanitizer.

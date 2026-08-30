@@ -10,12 +10,12 @@ The engine automates heavy cognitive lifting—target discovery, JavaScript-rend
 
 - **Zero-Cost Discovery**: Unmetered prospect keyword search using `ddgs` (DuckDuckGo) and geographic entity resolution with OpenStreetMap Overpass API ($0.00 / no API billing).
 - **Fast Web Extraction**: Headless SPA hydration and automatic noise/boilerplate stripping to clean markdown via `crawl4ai` and `playwright`.
-- **Zero-Cost Email Verification**: Direct asynchronous DNS MX lookups and raw socket SMTP mailbox handshakes without burning credits on third-party verification APIs.
+- **Zero-Cost Email Verification**: Direct asynchronous DNS MX lookups with TTL caching and raw socket SMTP mailbox handshakes without burning credits on third-party verification APIs.
 - **Intelligent Reasoning & Schema Enforcement**: LiteLLM proxy router leveraging **Gemini 3.7 Flash** (Google AI Studio Free Tier) with automatic fallback to **Llama 3.3 70B Versatile** (Groq Cloud) with strict Pydantic v2 JSON schema enforcement.
 - **Dual Mobile HITL Gates (Telegram)**:
-  - **Gate 1 (Lead Qualification)**: Push card displaying Fit Score (1-10), 3 Pros, 3 Cons, and Pitch Angle with `[✅ Approve & Draft]` / `[❌ Discard]` buttons.
-  - **Gate 2 (Email Review)**: Push card displaying generated Subject Line & Body with `[🚀 Confirm & Send]`, `[✏️ Edit Copy]`, and `[❌ Cancel]`.
-- **Safe Outbox Dispatcher**: Dispatches approved emails via official Gmail API (OAuth2) with 10–25 minute random jitter and hard daily volume limits (5–15 emails/day).
+  - **Gate 1 (Lead Qualification)**: Push card displaying Fit Score ($1–10$), Operations Summary, 3 Pros, 3 Cons, and Pitch Angle with `[✅ Approve & Draft]` / `[❌ Discard]` buttons.
+  - **Gate 2 (Email Review & Edit)**: Push card displaying generated Subject Line & 3-sentence Pitch Body with `[🚀 Confirm & Send]`, `[✏️ Edit Copy]` (direct in-chat reply editing), and `[❌ Cancel]`.
+- **Safe Outbox Dispatcher**: Dispatches approved emails via official Gmail API (OAuth2) with 10–25 minute random jitter, business hours validation ($09:00–17:00$), and hard daily volume limits ($5–15$ emails/day).
 - **Managed Persistence**: Supabase (PostgreSQL) database with Row-Level Security (RLS) enabled and backend execution via `service_role` key.
 
 ---
@@ -36,21 +36,21 @@ The engine automates heavy cognitive lifting—target discovery, JavaScript-rend
                                          ▼
                  ┌────────────────────────────────────────────────┐
                  │ 2. CONTACT RESOLUTION & ZERO-COST VERIFICATION │
-                 │ • Local Async DNS MX Record Check              │
+                 │ • Local Async DNS MX Record Check & TTL Cache  │
                  │ • Direct SMTP Socket Mailbox Handshake         │
                  └───────────────────────┬────────────────────────┘
                                          │
                                          ▼
                  ┌────────────────────────────────────────────────┐
                  │ 3. INTELLIGENCE & EVALUATION LAYER             │
-                 │ • LiteLLM Router: Gemini 3.7 Flash / Groq      │
+                 │ • LiteLLM Router: Gemini Flash / Groq Llama    │
                  │ • Pydantic v2 Strict Structured Schemas        │
                  └───────────────────────┬────────────────────────┘
                                          │
                                          ▼
                  ┌────────────────────────────────────────────────┐
                  │ 4. PERSISTENCE LAYER (Supabase / Postgres)     │
-                 │ • Initial Status: 'PENDING_LEAD_REVIEW'        │
+                 │ • Status: 'PENDING_LEAD_REVIEW'                │
                  └───────────────────────┬────────────────────────┘
                                          │
                                          ▼
@@ -121,12 +121,13 @@ client-search/
 │   └── callbacks.py         # Gate 1 & Gate 2 interactive button handlers
 ├── dispatch/
 │   └── gmail_sender.py      # Gmail API OAuth2 dispatch with jitter & volume control
-├── tests/                   # Pytest test suite with async mocks
-├── docs/task-logs/          # Architectural decisions & task reports
+├── tests/                   # 111 Pytest unit and E2E integration tests
+├── docs/task-logs/          # Architectural decisions & task reports (Tasks 1-9)
 ├── scheduler.py             # Periodic background scouting pipeline runner
 ├── main.py                  # CLI entrypoint & service lifecycle manager
 ├── requirements.txt         # Pinned production & development dependencies
-└── .env.example             # Environment configuration template
+├── .env.example             # Environment configuration template
+└── README.md                # System documentation
 ```
 
 ---
@@ -134,14 +135,14 @@ client-search/
 ## 🚀 Getting Started
 
 ### 1. Prerequisites
-- **Python 3.12+**
+- **Python 3.11+ or 3.12+**
 - **[uv](https://github.com/astral-sh/uv)** (fast Python package manager)
 
 ### 2. Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/client-search.git
+git clone https://github.com/baderGorchene/client-search.git
 cd client-search
 
 # Create virtual environment and install dependencies
@@ -191,25 +192,83 @@ EMAIL_JITTER_MAX_SECONDS=1500
 
 1. Navigate to the SQL Editor in your [Supabase Dashboard](https://supabase.com/dashboard).
 2. Execute the DDL script found in [`database/schema.sql`](file:///home/bunshee/Projects/client-search/database/schema.sql).
-3. The table `leads` will be created with Row-Level Security enabled, ready to be accessed securely by your backend using the `service_role` key.
+3. The table `leads` will be created with Row-Level Security (RLS) enabled and indexed on `status` and `website_url`.
+
+---
+
+## 💻 CLI Usage
+
+The system exposes a unified CLI in `main.py` with subcommands:
+
+### 1. Run Autonomous Service (Scheduler + Telegram Bot)
+Starts the recurring background prospecting scheduler and the Telegram HITL bot interface concurrently with clean OS signal handling (`SIGINT`, `SIGTERM`):
+
+```bash
+uv run python main.py run --interval 4 --scout-now
+```
+
+### 2. One-Shot Prospect Scouting Run
+Execute an immediate discovery, extraction, verification, evaluation, and Telegram push cycle for a specific vertical and location without starting the background daemon:
+
+```bash
+uv run python main.py scout --vertical logistics --location "Chicago, IL" --limit 5 --min-score 7
+```
+
+### 3. Telegram HITL Bot Only
+Run only the interactive mobile Telegram interface in polling mode:
+
+```bash
+uv run python main.py bot
+```
+
+### 4. Check Pipeline Metrics Dashboard
+Inspect lead volumes and state distributions across all stages directly in your terminal:
+
+```bash
+uv run python main.py status
+```
+
+### 5. Dispatch Approved Emails
+Send approved drafts waiting in the outbox queue:
+
+```bash
+# Dispatch next 5 approved emails with safety jitter
+uv run python main.py dispatch --limit 5 --jitter
+
+# Dispatch a specific lead by UUID immediately
+uv run python main.py dispatch --lead-id "00000000-0000-0000-0000-000000000000"
+```
+
+---
+
+## 📱 Telegram Operator Commands
+
+When interacting with the Telegram Bot:
+- `/start` - Displays the system welcome banner and operating status.
+- `/status` - Displays live database metrics across all lead statuses and daily outbox caps.
+- `/pending` - Lists the top pending Gate 1 (Lead Qualification) and Gate 2 (Draft Approval) review items.
+- `/help` - Displays the operator quick reference guide.
 
 ---
 
 ## 🧪 Verification & Testing
 
-Run the automated test suite and linter:
+The project includes an end-to-end automated test suite with full async mocking:
 
 ```bash
-# Run all unit and integration tests
+# Run all 111 unit, integration, and E2E tests
 uv run pytest
 
-# Run tests for discovery engine
-uv run pytest tests/test_searcher.py -v
+# Run targeted test suites
+uv run pytest tests/test_discovery.py
+uv run pytest tests/test_crawler.py
+uv run pytest tests/test_verifier.py
+uv run pytest tests/test_llm_service.py
+uv run pytest tests/test_telegram_bot.py
+uv run pytest tests/test_gmail_sender.py
+uv run pytest tests/test_pipeline_e2e.py
 
-# Run database and schema tests
-uv run pytest tests/test_database.py -v
-
-# Lint and format check
+# Lint and formatting validation
 uv run ruff check .
 ```
 
@@ -217,6 +276,6 @@ uv run ruff check .
 
 ## 🔒 Security & Best Practices
 
-- **Zero API Leakage**: All keys (`.env`, `credentials.json`, `token.json`) are strictly excluded from source control via `.gitignore`.
-- **Anti-Spam & Reputation Protection**: Hard daily limits (`DAILY_EMAIL_CAP=15`) with human verification at two gates prevent unauthorized or runaway dispatches.
-- **Row-Level Security**: Production database restricts unauthorized anonymous public access while permitting server-side backend operations.
+- **Zero API Leakage**: All secrets (`.env`, `credentials.json`, `token.json`) are strictly excluded from git tracking via `.gitignore`.
+- **Anti-Spam & Domain Reputation Protection**: Hard daily limits (`DAILY_EMAIL_CAP=15`) with mandatory dual human verification prevents rogue or runaway dispatches.
+- **Row-Level Security**: Production database restricts unauthorized anonymous public access while permitting server-side backend operations via `service_role`.

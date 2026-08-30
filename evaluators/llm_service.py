@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T", bound=BaseModel)
 
 # Default model identifiers for LiteLLM routing
-DEFAULT_PRIMARY_MODEL = "gemini/gemini-2.0-flash"
+DEFAULT_PRIMARY_MODEL = "gemini/gemini-3.7-flash"
 DEFAULT_FALLBACK_MODEL = "groq/llama-3.3-70b-versatile"
 
 # System prompts
@@ -108,7 +108,7 @@ async def call_llm_with_fallback(
     Args:
         messages: OpenAI-format chat messages list.
         response_schema: Target Pydantic model class for structured output validation.
-        primary_model: Primary model identifier (default Gemini 2.0 Flash).
+        primary_model: Primary model identifier (default Gemini 3.7 Flash).
         fallback_model: Fallback model identifier (default Groq Llama 3.3 70B).
         temperature: Sampling temperature.
         max_tokens: Maximum tokens to generate.
