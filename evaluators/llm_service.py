@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T", bound=BaseModel)
 
 # Default model identifiers for LiteLLM routing
-DEFAULT_PRIMARY_MODEL = "gemini/gemini-3.7-flash"
+DEFAULT_PRIMARY_MODEL = "gemini/gemini-3.5-flash"
 DEFAULT_FALLBACK_MODEL = "groq/llama-3.3-70b-versatile"
 
 # System prompts
@@ -173,6 +173,9 @@ async def evaluate_lead(
     company_name: str = "",
     website_url: str = "",
     discovered_contacts: dict[str, Any] | None = None,
+    decision_maker_name: str | None = None,
+    decision_maker_title: str | None = None,
+    decision_maker_email: str | None = None,
     primary_model: str = DEFAULT_PRIMARY_MODEL,
     fallback_model: str = DEFAULT_FALLBACK_MODEL,
 ) -> LeadEvaluation:
@@ -183,15 +186,26 @@ async def evaluate_lead(
         company_name: Inferred company name (optional).
         website_url: Prospect website URL (optional).
         discovered_contacts: Metadata of discovered emails, phones, and social links.
+        decision_maker_name: Known decision maker name (optional).
+        decision_maker_title: Known decision maker title (optional).
+        decision_maker_email: Resolved email address (optional).
         primary_model: Model name for primary inference.
         fallback_model: Model name for fallback inference.
 
     Returns:
         LeadEvaluation instance with ICP fit scoring, pros, cons, and suggested pitch hook.
     """
+    contacts_dict = dict(discovered_contacts or {})
+    if decision_maker_name:
+        contacts_dict["decision_maker_name"] = decision_maker_name
+    if decision_maker_title:
+        contacts_dict["decision_maker_title"] = decision_maker_title
+    if decision_maker_email:
+        contacts_dict["decision_maker_email"] = decision_maker_email
+
     contacts_context = ""
-    if discovered_contacts:
-        contacts_context = f"\n### Discovered Contact Information:\n{json.dumps(discovered_contacts, indent=2)}\n"
+    if contacts_dict:
+        contacts_context = f"\n### Discovered Contact Information:\n{json.dumps(contacts_dict, indent=2)}\n"
 
     user_prompt = f"""Evaluate this target prospect for AI workflow automation services:
 
@@ -216,11 +230,17 @@ Provide the evaluation in valid JSON matching the schema."""
         temperature=0.1,
     )
 
-    # Sanitize and ensure company name & URL are preserved if LLM returned generic fallbacks
+    # Sanitize and ensure company name, URL, and verified contact details are preserved
     if company_name and not evaluation.company_name:
         evaluation.company_name = company_name
     if website_url and not evaluation.website_url:
         evaluation.website_url = website_url
+    if decision_maker_name and not evaluation.decision_maker_name:
+        evaluation.decision_maker_name = decision_maker_name
+    if decision_maker_title and not evaluation.decision_maker_title:
+        evaluation.decision_maker_title = decision_maker_title
+    if decision_maker_email and not evaluation.decision_maker_email:
+        evaluation.decision_maker_email = decision_maker_email
 
     return evaluation
 

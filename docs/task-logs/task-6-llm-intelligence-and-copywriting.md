@@ -12,7 +12,7 @@
 - [evaluators/llm_service.py](file:///home/bunshee/Projects/client-search/evaluators/llm_service.py):
   - Defined system prompts ([`LEAD_EVALUATION_SYSTEM_PROMPT`](file:///home/bunshee/Projects/client-search/evaluators/llm_service.py#L21) and [`EMAIL_DRAFTING_SYSTEM_PROMPT`](file:///home/bunshee/Projects/client-search/evaluators/llm_service.py#L52)) enforcing zero-cost workflow automation criteria, bottleneck extraction, and 3-sentence value pitches.
   - Implemented [`clean_json_response`](file:///home/bunshee/Projects/client-search/evaluators/llm_service.py#L76) to sanitize raw model completions, remove markdown code blocks (` ```json...``` `), and extract clean JSON payloads.
-  - Implemented [`call_llm_with_fallback`](file:///home/bunshee/Projects/client-search/evaluators/llm_service.py#L97) routing requests to `gemini/gemini-3.7-flash` with automatic failover to `groq/llama-3.3-70b-versatile` upon errors or rate limits.
+  - Implemented [`call_llm_with_fallback`](file:///home/bunshee/Projects/client-search/evaluators/llm_service.py#L97) routing requests to `gemini/gemini-3.5-flash` with automatic failover to `groq/llama-3.3-70b-versatile` upon errors or rate limits.
   - Implemented [`evaluate_lead`](file:///home/bunshee/Projects/client-search/evaluators/llm_service.py#L169) for scoring target fit ($1–10$), extracting executive contact roles, generating operational summaries, and pinpointing automation pros/cons.
   - Implemented [`generate_email_draft`](file:///home/bunshee/Projects/client-search/evaluators/llm_service.py#L218) for generating punchy, lowercase subject lines (<50 chars) and 3-sentence personalized cold pitches (<600 chars).
 - [evaluators/__init__.py](file:///home/bunshee/Projects/client-search/evaluators/__init__.py):

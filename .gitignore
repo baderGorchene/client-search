@@ -1,3 +1,7 @@
+.states
+assets/external/
+.web
+*.db
 # Python virtual environment & bytecode
 .venv/
 venv/
