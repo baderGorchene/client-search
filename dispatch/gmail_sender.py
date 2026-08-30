@@ -61,10 +61,10 @@ def get_random_jitter_seconds(
     max_seconds: int | None = None,
 ) -> int:
     """Calculate a randomized jitter delay between email dispatches."""
-    min_val = min_seconds if min_seconds is not None else settings.EMAIL_JITTER_MIN_SECONDS
-    max_val = max_seconds if max_seconds is not None else settings.EMAIL_JITTER_MAX_SECONDS
-    if min_val > max_val:
-        min_val, max_val = max_val, min_val
+    min_val, max_val = sorted((
+        min_seconds if min_seconds is not None else settings.EMAIL_JITTER_MIN_SECONDS,
+        max_seconds if max_seconds is not None else settings.EMAIL_JITTER_MAX_SECONDS,
+    ))
     return random.randint(min_val, max_val)
 
 

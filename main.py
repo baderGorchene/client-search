@@ -48,16 +48,43 @@ async def cmd_scout(args: argparse.Namespace) -> None:
     print("=" * 50)
 
 
+from collections import Counter
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def _running_telegram_bot(app):
+    """Context manager managing the Telegram application polling lifecycle."""
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling(drop_pending_updates=True)
+    try:
+        yield
+    finally:
+        logger.info("Shutting down Telegram Bot...")
+        await app.updater.stop()
+        await app.stop()
+        await app.shutdown()
+
+
+async def _wait_for_signal() -> None:
+    """Wait asynchronously until a SIGINT or SIGTERM is received."""
+    stop_event = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            loop.add_signal_handler(sig, stop_event.set)
+        except NotImplementedError:
+            pass
+    await stop_event.wait()
+
+
 async def cmd_status(args: argparse.Namespace) -> None:
     """Query and print live pipeline metrics from Supabase."""
     sb = await get_supabase_client()
     response = await sb.table(TABLE_LEADS).select("status").execute()
     rows = response.data or []
-
-    counts: dict[str, int] = {}
-    for r in rows:
-        st = r.get("status", "UNKNOWN")
-        counts[st] = counts.get(st, 0) + 1
+    counts = Counter(r.get("status", "UNKNOWN") for r in rows)
 
     print("\n" + "=" * 50)
     print("📊 Lead Scouting Pipeline Status Overview")
@@ -98,73 +125,26 @@ async def cmd_bot(args: argparse.Namespace) -> None:
     """Run only the Telegram HITL Bot polling engine."""
     logger.info("Initializing Telegram HITL Bot...")
     app = create_telegram_app()
-
-    await app.initialize()
-    await app.start()
-    await app.updater.start_polling(drop_pending_updates=True)
-    logger.info("Telegram Bot polling started. Press Ctrl+C to terminate.")
-
-    stop_event = asyncio.Event()
-
-    def _on_signal() -> None:
-        stop_event.set()
-
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        try:
-            loop.add_signal_handler(sig, _on_signal)
-        except NotImplementedError:
-            pass
-
-    await stop_event.wait()
-    logger.info("Shutting down Telegram Bot...")
-    await app.updater.stop()
-    await app.stop()
-    await app.shutdown()
+    async with _running_telegram_bot(app):
+        logger.info("Telegram Bot polling started. Press Ctrl+C to terminate.")
+        await _wait_for_signal()
     logger.info("Bot cleanly stopped.")
 
 
 async def cmd_run(args: argparse.Namespace) -> None:
     """Run the complete service: APScheduler background scouting + Telegram Bot HITL interface."""
     logger.info("Starting Autonomous Client Search & Outreach System...")
-
-    # 1. Start Telegram Bot
     app = create_telegram_app()
-    await app.initialize()
-    await app.start()
-    await app.updater.start_polling(drop_pending_updates=True)
-    logger.info("Telegram HITL Bot polling active.")
-
-    # 2. Start Background Scheduler
     scheduler = create_scheduler(interval_hours=args.interval, run_on_start=args.scout_now)
     scheduler.start()
     logger.info(f"Background APScheduler started (interval: {args.interval}h).")
 
-    # 3. Graceful Shutdown Signals
-    stop_event = asyncio.Event()
+    async with _running_telegram_bot(app):
+        logger.info("Telegram HITL Bot polling active.")
+        await _wait_for_signal()
 
-    def _signal_handler() -> None:
-        logger.info("Termination signal received. Initiating graceful shutdown...")
-        stop_event.set()
-
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        try:
-            loop.add_signal_handler(sig, _signal_handler)
-        except NotImplementedError:
-            pass
-
-    # Wait until interrupted
-    await stop_event.wait()
-
-    # 4. Clean Shutdown
     logger.info("Stopping scheduler...")
     scheduler.shutdown(wait=False)
-
-    logger.info("Stopping Telegram Bot...")
-    await app.updater.stop()
-    await app.stop()
-    await app.shutdown()
     logger.info("System gracefully stopped.")
 
 

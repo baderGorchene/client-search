@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import logging
+from collections import Counter
 from typing import Any
 
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -213,11 +214,7 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         # Fetch counts by status
         response = await sb.table(TABLE_LEADS).select("status").execute()
         rows = response.data or []
-
-        counts: dict[str, int] = {}
-        for r in rows:
-            s = r.get("status", "UNKNOWN")
-            counts[s] = counts.get(s, 0) + 1
+        counts = Counter(r.get("status", "UNKNOWN") for r in rows)
 
         total = len(rows)
         pending_lead = counts.get(LeadStatus.PENDING_LEAD_REVIEW.value, 0)

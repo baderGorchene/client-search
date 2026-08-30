@@ -88,13 +88,8 @@ async def run_scouting_pipeline(
 
     for vertical in target_verticals:
         for location in target_locations:
-            try:
-                vert_enum = (
-                    vertical if isinstance(vertical, ICPVertical)
-                    else ICPVertical(str(vertical).lower())
-                )
-            except ValueError:
-                vert_enum = ICPVertical.LOGISTICS
+            vert_str = str(getattr(vertical, "value", vertical)).lower()
+            vert_enum = ICPVertical._value2member_map_.get(vert_str, ICPVertical.LOGISTICS)
 
             try:
                 # 1. Discovery Search
