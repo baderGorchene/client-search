@@ -25,10 +25,10 @@
   - Verification: `uv run pytest tests/test_verifier.py`
   - Status: Completed
 
-- [ ] **Task 6: Intelligence & Copywriting LLM Router** (Automated Tests Passed - Awaiting Human Validation)
+- [x] **Task 6: Intelligence & Copywriting LLM Router**
   - Objective: Implement `evaluators/llm_service.py` with LiteLLM routing (Gemini 3.7 Flash primary, Groq Llama 3.3 fallback) and strict structured schema enforcement.
   - Verification: `uv run pytest tests/test_llm_service.py`
-  - Status: Awaiting Human Validation
+  - Status: Completed
 
 - [ ] **Task 7: Mobile HITL Telegram Bot (Gate 1 & Gate 2)**
   - Objective: Implement `bot/telegram_bot.py` and `bot/callbacks.py` supporting Gate 1 (Lead qualification) and Gate 2 (Draft approval/editing) inline actions.
