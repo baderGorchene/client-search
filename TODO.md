@@ -35,10 +35,10 @@
   - Verification: `uv run pytest tests/test_telegram_bot.py`
   - Status: Completed
 
-- [ ] **Task 8: Outbox Dispatcher with Rate Limiting & Safety Jitter**
+- [x] **Task 8: Outbox Dispatcher with Rate Limiting & Safety Jitter**
   - Objective: Implement `dispatch/gmail_sender.py` with Gmail API OAuth2 integration, 10–25 minute random jitter, and daily email volume capping.
   - Verification: `uv run pytest tests/test_gmail_sender.py`
-  - Status: Pending
+  - Status: Completed
 
 - [ ] **Task 9: Pipeline Orchestration, Scheduler & E2E Integration**
   - Objective: Wire end-to-end pipeline in `scheduler.py` (APScheduler) and `main.py` entrypoint with graceful shutdown and end-to-end testing.
