@@ -1,6 +1,5 @@
 """Web extraction pipeline using Crawl4AI for zero-cost prospect website scraping and markdown synthesis."""
 
-import logging
 import re
 from typing import Any
 from urllib.parse import urljoin, urlparse
@@ -13,9 +12,8 @@ from crawl4ai import (
     DefaultMarkdownGenerator,
     PruningContentFilter,
 )
+from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
-
-logger = logging.getLogger(__name__)
 
 EMAIL_REGEX = re.compile(r"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b")
 PHONE_REGEX = re.compile(r"(?:(?:\+?1\s*(?:[.-]\s*)?)?(?:\(\s*[2-9]\d{2}\s*\)|[2-9]\d{2})\s*(?:[.-]\s*)?)?[2-9]\d{2}\s*(?:[.-]\s*)?\d{4}")

@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import html
-import logging
 from collections import Counter
 from typing import Any
 
+from loguru import logger
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.ext import (
@@ -31,8 +31,6 @@ from database.queries import (
     update_lead_telegram_msg,
 )
 from evaluators.schemas import EmailDraft, LeadEvaluation, LeadRecord, LeadStatus
-
-logger = logging.getLogger(__name__)
 
 
 def build_lead_review_card(

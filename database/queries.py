@@ -1,16 +1,14 @@
 """Lead CRUD operations and status lifecycle management for Supabase/PostgreSQL."""
 
-import logging
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
+from loguru import logger
 from supabase import AsyncClient
 
 from database.client import get_supabase_client
 from evaluators.schemas import EmailDraft, LeadEvaluation, LeadRecord, LeadStatus
-
-logger = logging.getLogger(__name__)
 
 TABLE_LEADS = "leads"
 

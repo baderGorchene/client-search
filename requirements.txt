@@ -32,6 +32,7 @@ google-auth-oauthlib>=1.2.1
 apscheduler>=3.10.4
 python-dotenv>=1.0.1
 httpx>=0.28.0
+loguru>=0.7.3
 
 # Development & Testing
 pytest>=8.0.0

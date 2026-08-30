@@ -294,7 +294,9 @@ client\_scouting\_engine/
 
 ├── config/
 
-│   └── settings.py              \# Environment variables & API keys
+│   ├── settings.py              # Environment variables & API keys
+
+│   └── logging.py               # Centralized Loguru logger setup & interceptor
 
 │
 
@@ -412,11 +414,13 @@ google-auth-oauthlib\>=1.2.1
 
 \# Scheduling & Utilities
 
-apscheduler\>=3.10.4
+apscheduler>=3.10.4
 
-python-dotenv\>=1.0.1
+python-dotenv>=1.0.1
 
-httpx\>=0.28.0
+httpx>=0.28.0
+
+loguru>=0.7.3
 
 ---
 

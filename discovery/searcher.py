@@ -1,21 +1,19 @@
 """Zero-cost prospect discovery engine using DuckDuckGo Search and OpenStreetMap Overpass."""
 
 import asyncio
-import logging
 import re
 from enum import Enum
 from typing import Any
 from urllib.parse import urlparse
 
 import httpx
+from loguru import logger
 from pydantic import BaseModel, Field
 
 try:
     from ddgs import DDGS
 except ImportError:
     from duckduckgo_search import DDGS  # type: ignore[no-redef]
-
-logger = logging.getLogger(__name__)
 
 # Explicit list of directory, aggregator, social, encyclopedia, job board, and media platforms
 DISQUALIFIED_DOMAINS = {

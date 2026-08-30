@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import html
-import logging
 
+from loguru import logger
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
@@ -16,8 +16,6 @@ from database.queries import (
 )
 from evaluators.llm_service import generate_email_draft
 from evaluators.schemas import EmailDraft, LeadStatus
-
-logger = logging.getLogger(__name__)
 
 
 def _build_draft_inline_keyboard(lead_id: str) -> InlineKeyboardMarkup:

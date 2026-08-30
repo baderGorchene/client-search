@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import logging
 from collections import Counter
 from typing import Any
 
 import reflex as rx
+from loguru import logger
 
 from config.settings import settings
 from database.client import get_supabase_client
@@ -21,8 +21,6 @@ from dispatch.gmail_sender import dispatch_approved_lead, get_daily_sent_count
 from evaluators.llm_service import generate_email_draft
 from evaluators.schemas import LeadEvaluation, LeadStatus
 from scheduler import run_scouting_pipeline
-
-logger = logging.getLogger("ui.state")
 
 
 class AppState(rx.State):
@@ -134,7 +132,7 @@ class AppState(rx.State):
             response = await sb.table(TABLE_LEADS).select("*").order("created_at", desc=True).execute()
             self.leads = response.data or []
             self.daily_sent_count = await get_daily_sent_count()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.exception("Failed to fetch leads from Supabase")
             self.status_message = f"Error fetching data: {exc}"
         finally:
@@ -174,7 +172,7 @@ class AppState(rx.State):
             await update_lead_status(lead_id, LeadStatus.DRAFT_GENERATED)
             self.status_message = f"Approved lead '{lead.get('company_name')}'. Draft generated for Gate 2."
             await self.fetch_leads()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.exception("Failed to approve lead")
             self.status_message = f"Approval failed: {exc}"
         finally:
@@ -188,7 +186,7 @@ class AppState(rx.State):
             await update_lead_status(lead_id, LeadStatus.LEAD_REJECTED)
             self.status_message = "Lead discarded."
             await self.fetch_leads()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.exception("Failed to discard lead")
             self.status_message = f"Discard failed: {exc}"
         finally:
@@ -202,7 +200,7 @@ class AppState(rx.State):
             res = await dispatch_approved_lead(lead_id=lead_id, apply_jitter=False)
             self.status_message = f"Dispatched email to {res.get('to_email')} ({res.get('company_name')})."
             await self.fetch_leads()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.exception("Failed to dispatch draft")
             self.status_message = f"Dispatch failed: {exc}"
         finally:
@@ -216,7 +214,7 @@ class AppState(rx.State):
             await update_lead_status(lead_id, LeadStatus.DRAFT_REJECTED)
             self.status_message = "Draft cancelled."
             await self.fetch_leads()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.exception("Failed to cancel draft")
             self.status_message = f"Cancellation failed: {exc}"
         finally:
@@ -249,7 +247,7 @@ class AppState(rx.State):
             self.is_edit_modal_open = False
             self.status_message = "Draft updated successfully."
             await self.fetch_leads()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.exception("Failed to save edited draft")
             self.status_message = f"Save failed: {exc}"
 
@@ -277,7 +275,7 @@ class AppState(rx.State):
                 f"Qualified {stats.get('qualified', 0)} new prospects."
             )
             await self.fetch_leads()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.exception("Scouting execution failed")
             self.status_message = f"Scouting failed: {exc}"
             self.execution_logs.append(f"❌ Execution error: {exc}")

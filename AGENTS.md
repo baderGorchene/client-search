@@ -9,7 +9,7 @@
 - **Web UI & Operations Dashboard**: `reflex` (Pure Python reactive web apps & Tailwind components)
 - **Database & Storage**: `supabase` (PostgreSQL async queries & connection pooling)
 - **Email Verification & Dispatch**: `py3-validate-email`, `dnspython`, `google-api-python-client` (Gmail API OAuth2)
-- **Scheduling**: `apscheduler`
+- **Scheduling & Logging**: `apscheduler`, `loguru`
 - **Coding Conventions**:
   - Strict type hints with Pydantic v2 schemas for all structured LLM IO and data transfer objects.
   - Fully asynchronous I/O (`async`/`await`) across web scraping, LLM calls, DB queries, and Telegram callbacks.
@@ -19,7 +19,8 @@
 ```text
 .
 ├── config/
-│   └── settings.py          # Pydantic Settings / environment variables
+│   ├── settings.py          # Pydantic Settings / environment variables
+│   └── logging.py           # Centralized Loguru logger setup & interceptor
 ├── database/
 │   ├── client.py            # Supabase / PostgreSQL async connection pool
 │   └── queries.py           # Lead CRUD operations and status transitions

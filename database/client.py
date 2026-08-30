@@ -1,12 +1,9 @@
 """Supabase asynchronous client initialization and lifecycle management."""
 
-import logging
-
+from loguru import logger
 from supabase import AsyncClient, create_async_client
 
 from config.settings import settings
-
-logger = logging.getLogger(__name__)
 
 _supabase_client: AsyncClient | None = None
 

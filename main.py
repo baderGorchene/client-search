@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import logging
 import signal
 import sys
 
+from loguru import logger
+
 from bot.telegram_bot import create_telegram_app
+from config.logging import setup_logging
 from config.settings import settings
 from database.client import get_supabase_client
 from database.queries import TABLE_LEADS, get_leads_by_status
@@ -16,13 +18,8 @@ from dispatch.gmail_sender import dispatch_approved_lead
 from evaluators.schemas import LeadStatus
 from scheduler import create_scheduler, run_scouting_pipeline
 
-# Configure root logger
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-logger = logging.getLogger("client-search")
+# Initialize Loguru centralized logging
+setup_logging()
 
 
 async def cmd_scout(args: argparse.Namespace) -> None:

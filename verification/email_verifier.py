@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import re
 import secrets
 import string
@@ -14,6 +13,7 @@ import dns.asyncresolver
 import dns.exception
 import dns.resolver
 import validate_email
+from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 from validate_email.exceptions import (
     AddressNotDeliverableError,
@@ -22,8 +22,6 @@ from validate_email.exceptions import (
     SMTPTemporaryError,
     TLSNegotiationError,
 )
-
-logger = logging.getLogger(__name__)
 
 EMAIL_SYNTAX_REGEX = re.compile(
     r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$"

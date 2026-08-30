@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from loguru import logger
 from telegram import Bot
 
 from bot.telegram_bot import send_lead_review_card
@@ -22,8 +22,6 @@ from discovery.searcher import (
 from evaluators.llm_service import evaluate_lead
 from evaluators.schemas import LeadRecord, LeadStatus
 from verification.email_verifier import resolve_lead_email
-
-logger = logging.getLogger(__name__)
 
 # Default target ICP verticals and geographic hubs
 DEFAULT_VERTICALS: list[ICPVertical] = [

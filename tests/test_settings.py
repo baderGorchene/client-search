@@ -40,3 +40,25 @@ def test_settings_custom_env_override(monkeypatch):
     assert cfg.SUPABASE_KEY == "supabase_service_role_secret"
     assert cfg.DAILY_EMAIL_CAP == 25
     assert cfg.MIN_LEAD_FIT_SCORE == 8
+
+
+def test_setup_logging(tmp_path):
+    """Verify Loguru setup and file sink creation."""
+    import logging
+
+    from loguru import logger
+
+    from config.logging import setup_logging
+
+    log_file = tmp_path / "test.log"
+    setup_logging(log_level="DEBUG", log_file=log_file)
+
+    logger.info("Test loguru message")
+    # Also verify standard library logging interception
+    std_logger = logging.getLogger("test_stdlib")
+    std_logger.info("Test stdlib intercepted message")
+
+    assert log_file.exists()
+    content = log_file.read_text()
+    assert "Test loguru message" in content
+    assert "Test stdlib intercepted message" in content
