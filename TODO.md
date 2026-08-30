@@ -26,7 +26,7 @@
   - Status: Completed
 
 - [x] **Task 6: Intelligence & Copywriting LLM Router**
-  - Objective: Implement `evaluators/llm_service.py` with LiteLLM routing (Gemini 3.7 Flash primary, Groq Llama 3.3 fallback) and strict structured schema enforcement.
+  - Objective: Implement `evaluators/llm_service.py` with LiteLLM routing (Gemini 3.5 Flash primary, Gemini 3.5 Flash-Lite fallback) and strict structured schema enforcement.
   - Verification: `uv run pytest tests/test_llm_service.py`
   - Status: Completed
 

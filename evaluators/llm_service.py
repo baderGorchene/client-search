@@ -1,4 +1,4 @@
-"""LLM intelligence and copywriting router with Gemini primary and Groq fallback."""
+"""LLM intelligence and copywriting router with Gemini 3.5 Flash primary and 3.5 Flash-Lite fallback."""
 
 from __future__ import annotations
 
@@ -19,7 +19,17 @@ T = TypeVar("T", bound=BaseModel)
 
 # Default model identifiers for LiteLLM routing
 DEFAULT_PRIMARY_MODEL = "gemini/gemini-3.5-flash"
-DEFAULT_FALLBACK_MODEL = "groq/llama-3.3-70b-versatile"
+DEFAULT_FALLBACK_MODEL = "gemini/gemini-3.5-flash-lite"
+
+
+def _resolve_api_key(model_name: str) -> str | None:
+    """Resolve the appropriate API key based on the LiteLLM model provider prefix."""
+    if model_name.startswith("gemini/"):
+        return settings.GEMINI_API_KEY or None
+    if model_name.startswith("groq/"):
+        return settings.GROQ_API_KEY or None
+    return None
+
 
 # System prompts
 LEAD_EVALUATION_SYSTEM_PROMPT = """You are a Principal AI Automation Consultant and B2B Prospect Evaluator.
@@ -49,10 +59,10 @@ Analyze the provided website content and return a strict JSON object matching th
 - decision_maker_title: Identified title/role (e.g., "Founder & CEO", "VP Operations", or empty string).
 - decision_maker_email: Verified direct or corporate email if identified (or empty string).
 - fit_score: Integer from 1 to 10 (1-6: Low fit/disqualified, 7-8: Solid candidate, 9-10: High-priority immediate bottleneck).
-- summary: High-level summary of what the company does and their business model (maximum 250 characters).
+- summary: High-level summary of what the company does and their business model (maximum 500 characters).
 - pros: 1 to 3 bullet points identifying specific operational workflows or bottlenecks that can be automated (max 3 items).
 - cons: 1 to 3 friction points, risk factors, or reasons they may not buy (max 3 items).
-- suggested_angle: A specific, personalized 1-sentence value proposition hook addressing their biggest bottleneck (maximum 150 characters).
+- suggested_angle: A specific, personalized 1-sentence value proposition hook addressing their biggest bottleneck (maximum 300 characters).
 
 Always output strictly valid JSON conforming to the schema with no additional commentary."""
 
@@ -65,10 +75,10 @@ Your goal is to write a highly personalized, compelling, zero-fluff cold outreac
    - Sentence 2 (Value Proposition): Explain how a custom automation pipeline (e.g. automated waybill/invoice OCR or instant triage) solves that exact bottleneck without changing their current software stack.
    - Sentence 3 (Low-Friction CTA): Propose a low-commitment next step (e.g., "Open to seeing a 2-minute video of how this works?", "Worth a quick 5-minute chat this Thursday?").
 2. No generic filler (e.g., "I hope this email finds you well", "I came across your website", "In today's fast-paced world").
-3. Subject line must be short, punchy, lowercase, and relevant (maximum 50 characters, e.g., "quick question re waybills", "operations at apex freight").
+3. Subject line must be short, punchy, lowercase, and relevant (maximum 100 characters, e.g., "quick question re waybills", "operations at apex freight").
 4. Output strictly valid JSON matching the EmailDraft schema:
-   - subject: short lowercase subject line (max 50 chars)
-   - body: 3-sentence personalized body (max 600 chars)
+   - subject: short lowercase subject line (max 100 chars)
+   - body: 3-sentence personalized body (max 1000 chars)
 
 Always output strictly valid JSON conforming to the schema with no additional commentary."""
 
@@ -103,13 +113,13 @@ async def call_llm_with_fallback(
     temperature: float = 0.2,
     max_tokens: int = 1200,
 ) -> T:
-    """Execute LLM completion with automatic primary model failure detection and Groq fallback.
+    """Execute LLM completion with automatic primary model failure detection and fallback.
 
     Args:
         messages: OpenAI-format chat messages list.
         response_schema: Target Pydantic model class for structured output validation.
-        primary_model: Primary model identifier (default Gemini 3.7 Flash).
-        fallback_model: Fallback model identifier (default Groq Llama 3.3 70B).
+        primary_model: Primary model identifier (default Gemini 3.5 Flash).
+        fallback_model: Fallback model identifier (default Gemini 3.5 Flash-Lite).
         temperature: Sampling temperature.
         max_tokens: Maximum tokens to generate.
 
@@ -119,7 +129,7 @@ async def call_llm_with_fallback(
     Raises:
         RuntimeError: If both primary and fallback LLM completions fail.
     """
-    # 1. Attempt Primary Model (Gemini)
+    # 1. Attempt Primary Model
     primary_error: Exception | None = None
     try:
         logger.info(f"Calling primary LLM model: {primary_model}")
@@ -128,7 +138,7 @@ async def call_llm_with_fallback(
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
-            api_key=settings.GEMINI_API_KEY or None,
+            api_key=_resolve_api_key(primary_model),
             response_format={"type": "json_object"},
         )
         raw_content = response.choices[0].message.content or ""
@@ -142,7 +152,7 @@ async def call_llm_with_fallback(
             f"Primary LLM ({primary_model}) failed: {exc}. Attempting fallback to {fallback_model}..."
         )
 
-    # 2. Attempt Fallback Model (Groq Llama 3.3)
+    # 2. Attempt Fallback Model
     try:
         logger.info(f"Calling fallback LLM model: {fallback_model}")
         response = await litellm.acompletion(
@@ -150,7 +160,7 @@ async def call_llm_with_fallback(
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
-            api_key=settings.GROQ_API_KEY or None,
+            api_key=_resolve_api_key(fallback_model),
             response_format={"type": "json_object"},
         )
         raw_content = response.choices[0].message.content or ""

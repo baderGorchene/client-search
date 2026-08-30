@@ -8,6 +8,7 @@ from uuid import uuid4
 import pytest
 
 from evaluators.schemas import EmailDraft, LeadStatus
+from ui.components.execution_logs import execution_logs_console
 from ui.components.kanban import kanban_board
 from ui.components.modals import edit_draft_modal
 from ui.components.navbar import navbar
@@ -277,6 +278,7 @@ async def test_app_state_trigger_scouting(mocker):
         max_prospects_per_vertical=3,
         min_fit_score=7,
         push_to_telegram=True,
+        progress_callback=mocker.ANY,
     )
     assert state.is_scouting is False
     assert "Scouting complete" in state.status_message
@@ -285,6 +287,20 @@ async def test_app_state_trigger_scouting(mocker):
 # ==============================================================================
 # UI Component Render Tests
 # ==============================================================================
+
+def test_app_state_execution_logs():
+    state = AppState()
+    assert state.execution_logs == []
+    assert state.current_step_description == ""
+
+    state.execution_logs.append("🔍 Step 1: Searching prospects...")
+    state.current_step_description = "Step 1"
+    assert len(state.execution_logs) == 1
+
+    state.clear_execution_logs()
+    assert state.execution_logs == []
+    assert state.current_step_description == ""
+
 
 def test_ui_components_render():
     """Verify all UI components and pages compile into valid Reflex component structures."""
@@ -300,6 +316,9 @@ def test_ui_components_render():
     modal_comp = edit_draft_modal()
     assert modal_comp is not None
 
+    console_comp = execution_logs_console()
+    assert console_comp is not None
+
     dash_comp = dashboard_page()
     assert dash_comp is not None
 
@@ -311,3 +330,4 @@ def test_ui_components_render():
 
     layout_comp = index()
     assert layout_comp is not None
+

@@ -61,9 +61,9 @@ The system automates the heavy cognitive lifting—target discovery, dynamic web
 
               │ • LiteLLM Router:                                                │
 
-              │   ├── Primary: Gemini 3.7 Flash / 3.5 Flash (Google AI Studio)   │
+              │   ├── Primary: Gemini 3.5 Flash (Google AI Studio)               │
 
-              │   └── Fallback: Llama 3.3 70B Versatile (Groq Cloud)             │
+              │   └── Fallback: Gemini 3.5 Flash-Lite (Google AI Studio)         │
 
               │ • Strict Pydantic v2 Schema Fit Scoring & Bottleneck Extraction  │
 
@@ -164,8 +164,8 @@ The system automates the heavy cognitive lifting—target discovery, dynamic web
 ### Subsystem 3: Evaluation & Intelligence Engine (`evaluators/`)
 
 * **Router Layer (`llm_service.py`):** [**LiteLLM**](https://www.getmaxim.ai/articles/openrouter-vs-litellm-vs-bifrost-multi-provider-llm-access/) unified Python proxy router.  
-  * **Primary Model:** [**Gemini 3.7 Flash**](https://blog.google/innovation-and-ai/models-and-research/gemini-models/introducing-gemini-3-7-flash/) / [**Gemini 3.5 Flash**](https://ai.google.dev/gemini-api/docs/pricing) via Google AI Studio Free Tier (unrivaled 1M+ token context and strict Pydantic JSON adherence).  
-  * **Fallback Model:** [**Llama 3.3 70B Versatile**](https://console.groq.com/docs/model/llama-3.3-70b-versatile) via Groq Cloud Free Tier (\~280 tok/s).  
+  * **Primary Model:** [**Gemini 3.5 Flash**](https://ai.google.dev/gemini-api/docs/pricing) via Google AI Studio Free Tier (unrivaled 1M+ token context and strict Pydantic JSON adherence).  
+  * **Fallback Model:** [**Gemini 3.5 Flash-Lite**](https://ai.google.dev/gemini-api/docs/pricing) via Google AI Studio Free Tier (high throughput, low latency backup).  
 * **Pydantic v2 Validation Schemas (`schemas.py`):**  
     
   from pydantic import BaseModel, Field  
@@ -318,7 +318,7 @@ client\_scouting\_engine/
 
 │   ├── schemas.py               \# Pydantic v2 data models
 
-│   └── llm\_service.py           \# LiteLLM router (Gemini 3.7 Flash \+ Groq)
+│   └── llm\_service.py           \# LiteLLM router (Gemini 3.5 Flash \+ 3.5 Flash-Lite)
 
 │
 
@@ -458,7 +458,7 @@ MIN\_LEAD\_FIT\_SCORE=7
 
 | Layer | Chosen Tool | Top Alternative | Why Chosen |
 | :---- | :---- | :---- | :---- |
-| **LLM Inference** | **Gemini 3.7 / 3.5 Flash** | Llama 3.3 70B (Groq) | Ingests entire websites (1M+ context) with strict native JSON mode for $0. |
+| **LLM Inference** | **Gemini 3.5 Flash** | Gemini 3.5 Flash-Lite | Ingests entire websites (1M+ context) with strict native JSON mode for $0. |
 | **Web Extraction** | **Crawl4AI** | Firecrawl / Playwright | Strips HTML boilerplate directly into clean markdown for LLMs without cloud credits. |
 | **Lead Discovery** | **`duckduckgo-search`** | Paid SerpAPI | Unmetered keyword search without credit caps or billing requirements. |
 | **HITL Controller** | **Telegram Bot** | Next.js Dashboard | Instant lock-screen mobile push approvals; zero frontend hosting required. |

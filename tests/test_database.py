@@ -72,50 +72,36 @@ def test_lead_evaluation_fit_score_boundaries():
 
 
 def test_lead_evaluation_max_items_and_lengths():
-    """Verify max length constraints on summary, pros, cons, suggested angle."""
-    with pytest.raises(ValidationError):
-        LeadEvaluation(
-            company_name="Acme",
-            website_url="https://example.com",
-            fit_score=8,
-            summary="x" * 251,  # Exceeds max 250
-            pros=["pro1"],
-            cons=["con1"],
-            suggested_angle="angle",
-        )
-
-    with pytest.raises(ValidationError):
-        LeadEvaluation(
-            company_name="Acme",
-            website_url="https://example.com",
-            fit_score=8,
-            summary="summary",
-            pros=["1", "2", "3", "4"],  # Exceeds max 3
-            cons=["1"],
-            suggested_angle="angle",
-        )
+    """Verify sanitization and constraints on summary, pros, cons, suggested angle."""
+    eval_obj = LeadEvaluation(
+        company_name="Acme",
+        website_url="https://example.com",
+        fit_score=8,
+        summary="x" * 700,
+        pros=["1", "2", "3", "4", "5", "6", "7"],
+        cons=["c1", "c2"],
+        suggested_angle="a" * 500,
+    )
+    assert len(eval_obj.summary) <= 590
+    assert len(eval_obj.pros) <= 5
+    assert len(eval_obj.suggested_angle) <= 390
 
 
 def test_email_draft_schema():
-    """Verify EmailDraft validation and constraints."""
+    """Verify EmailDraft validation and sanitization."""
     draft = EmailDraft(
         subject="quick question about freight ops",
         body="Saw you're scaling routes across the midwest. Are manual waybills slowing down your dispatchers? We build OCR pipelines that extract invoice data directly into your TMS in seconds.",
     )
     assert draft.subject == "quick question about freight ops"
-    assert len(draft.body) <= 600
+    assert len(draft.body) <= 1200
 
-    with pytest.raises(ValidationError):
-        EmailDraft(
-            subject="x" * 51,  # Exceeds max 50
-            body="body",
-        )
-
-    with pytest.raises(ValidationError):
-        EmailDraft(
-            subject="subject",
-            body="x" * 601,  # Exceeds max 600
-        )
+    draft_long = EmailDraft(
+        subject="x" * 200,
+        body="y" * 1500,
+    )
+    assert len(draft_long.subject) <= 140
+    assert len(draft_long.body) <= 1150
 
 
 def test_lead_record_defaults():

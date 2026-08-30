@@ -2,6 +2,7 @@
 
 import reflex as rx
 
+from ui.components.execution_logs import execution_logs_console
 from ui.components.kanban import kanban_board
 from ui.components.modals import edit_draft_modal
 from ui.components.stat_cards import stat_cards
@@ -85,6 +86,8 @@ def dashboard_page() -> rx.Component:
         ),
         # Quick Scout Runner Bar
         _scout_trigger_bar(),
+        # Live Execution Steps Terminal Console
+        execution_logs_console(),
         # Key Performance Metrics
         stat_cards(),
         # Dual-Gate Mobile HITL Kanban

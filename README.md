@@ -11,7 +11,7 @@ The engine automates heavy cognitive lifting—target discovery, JavaScript-rend
 - **Zero-Cost Discovery**: Unmetered prospect keyword search using `ddgs` (DuckDuckGo) and geographic entity resolution with OpenStreetMap Overpass API ($0.00 / no API billing).
 - **Fast Web Extraction**: Headless SPA hydration and automatic noise/boilerplate stripping to clean markdown via `crawl4ai` and `playwright`.
 - **Zero-Cost Email Verification**: Direct asynchronous DNS MX lookups with TTL caching and raw socket SMTP mailbox handshakes without burning credits on third-party verification APIs.
-- **Intelligent Reasoning & Schema Enforcement**: LiteLLM proxy router leveraging **Gemini 3.7 Flash** (Google AI Studio Free Tier) with automatic fallback to **Llama 3.3 70B Versatile** (Groq Cloud) with strict Pydantic v2 JSON schema enforcement.
+- **Intelligent Reasoning & Schema Enforcement**: LiteLLM proxy router leveraging **Gemini 3.5 Flash** (Google AI Studio Free Tier) with automatic fallback to **Gemini 3.5 Flash-Lite** with strict Pydantic v2 JSON schema enforcement.
 - **Dual Mobile HITL Gates (Telegram)**:
   - **Gate 1 (Lead Qualification)**: Push card displaying Fit Score ($1–10$), Operations Summary, 3 Pros, 3 Cons, and Pitch Angle with `[✅ Approve & Draft]` / `[❌ Discard]` buttons.
   - **Gate 2 (Email Review & Edit)**: Push card displaying generated Subject Line & 3-sentence Pitch Body with `[🚀 Confirm & Send]`, `[✏️ Edit Copy]` (direct in-chat reply editing), and `[❌ Cancel]`.
@@ -43,7 +43,7 @@ The engine automates heavy cognitive lifting—target discovery, JavaScript-rend
                                          ▼
                  ┌────────────────────────────────────────────────┐
                  │ 3. INTELLIGENCE & EVALUATION LAYER             │
-                 │ • LiteLLM Router: Gemini Flash / Groq Llama    │
+                 │ • LiteLLM Router: Gemini 3.5 Flash / Flash-Lite│
                  │ • Pydantic v2 Strict Structured Schemas        │
                  └───────────────────────┬────────────────────────┘
                                          │
@@ -113,7 +113,7 @@ client-search/
 │   └── crawler.py           # Crawl4AI markdown extraction pipeline
 ├── evaluators/
 │   ├── schemas.py           # Pydantic v2 models (LeadEvaluation, EmailDraft, LeadRecord)
-│   └── llm_service.py       # LiteLLM router (Gemini 3.7 Flash + Groq fallback)
+│   └── llm_service.py       # LiteLLM router (Gemini 3.5 Flash + 3.5 Flash-Lite fallback)
 ├── verification/
 │   └── email_verifier.py    # Local async DNS MX & raw SMTP socket verifier
 ├── bot/

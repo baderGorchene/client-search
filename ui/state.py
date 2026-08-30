@@ -38,6 +38,9 @@ class AppState(rx.State):
     is_scouting: bool = False
     status_message: str = ""
     active_tab: str = "kanban"
+    active_lead_action_id: str = ""
+    current_step_description: str = ""
+    execution_logs: list[str] = []  # noqa: RUF012
 
     # Search & Filtering
     search_query: str = ""
@@ -140,6 +143,7 @@ class AppState(rx.State):
     async def approve_lead(self, lead_id: str) -> None:
         """Approve Gate 1: Generate AI cold pitch draft and transition to DRAFT_GENERATED."""
         self.is_loading = True
+        self.active_lead_action_id = lead_id
         try:
             lead = await get_lead_by_id(lead_id)
             if not lead:
@@ -175,9 +179,11 @@ class AppState(rx.State):
             self.status_message = f"Approval failed: {exc}"
         finally:
             self.is_loading = False
+            self.active_lead_action_id = ""
 
     async def discard_lead(self, lead_id: str) -> None:
         """Discard Gate 1 lead: transition to LEAD_REJECTED."""
+        self.active_lead_action_id = lead_id
         try:
             await update_lead_status(lead_id, LeadStatus.LEAD_REJECTED)
             self.status_message = "Lead discarded."
@@ -185,10 +191,13 @@ class AppState(rx.State):
         except Exception as exc:
             logger.exception("Failed to discard lead")
             self.status_message = f"Discard failed: {exc}"
+        finally:
+            self.active_lead_action_id = ""
 
     async def send_draft(self, lead_id: str) -> None:
         """Approve Gate 2: Dispatch email via Gmail API and mark EMAIL_SENT."""
         self.is_loading = True
+        self.active_lead_action_id = lead_id
         try:
             res = await dispatch_approved_lead(lead_id=lead_id, apply_jitter=False)
             self.status_message = f"Dispatched email to {res.get('to_email')} ({res.get('company_name')})."
@@ -198,9 +207,11 @@ class AppState(rx.State):
             self.status_message = f"Dispatch failed: {exc}"
         finally:
             self.is_loading = False
+            self.active_lead_action_id = ""
 
     async def cancel_draft(self, lead_id: str) -> None:
         """Cancel Gate 2 draft: transition to DRAFT_REJECTED."""
+        self.active_lead_action_id = lead_id
         try:
             await update_lead_status(lead_id, LeadStatus.DRAFT_REJECTED)
             self.status_message = "Draft cancelled."
@@ -208,6 +219,8 @@ class AppState(rx.State):
         except Exception as exc:
             logger.exception("Failed to cancel draft")
             self.status_message = f"Cancellation failed: {exc}"
+        finally:
+            self.active_lead_action_id = ""
 
     def open_edit_modal(self, lead: dict[str, Any]) -> None:
         """Open the draft copy editor modal."""
@@ -243,7 +256,13 @@ class AppState(rx.State):
     async def trigger_scouting(self) -> None:
         """Execute a one-shot prospect scouting cycle from the web dashboard."""
         self.is_scouting = True
+        self.execution_logs = []
         self.status_message = f"Running discovery for {self.scout_vertical} in {self.scout_location}..."
+
+        async def _on_progress(msg: str) -> None:
+            self.execution_logs.append(msg)
+            self.current_step_description = msg
+
         try:
             stats = await run_scouting_pipeline(
                 verticals=[self.scout_vertical],
@@ -251,6 +270,7 @@ class AppState(rx.State):
                 max_prospects_per_vertical=self.scout_limit,
                 min_fit_score=self.scout_min_score,
                 push_to_telegram=True,
+                progress_callback=_on_progress,
             )
             self.status_message = (
                 f"Scouting complete: Found {stats.get('discovered', 0)}, "
@@ -260,8 +280,14 @@ class AppState(rx.State):
         except Exception as exc:
             logger.exception("Scouting execution failed")
             self.status_message = f"Scouting failed: {exc}"
+            self.execution_logs.append(f"❌ Execution error: {exc}")
         finally:
             self.is_scouting = False
+
+    def clear_execution_logs(self) -> None:
+        """Clear execution log history."""
+        self.execution_logs = []
+        self.current_step_description = ""
 
     def set_active_tab(self, tab_name: str) -> None:
         self.active_tab = tab_name

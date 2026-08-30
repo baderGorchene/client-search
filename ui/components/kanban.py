@@ -94,7 +94,7 @@ def _gate1_card(lead: dict[str, Any]) -> rx.Component:
                     color_scheme="green",
                     size="2",
                     on_click=lambda: AppState.approve_lead(lead_id),
-                    loading=AppState.is_loading,
+                    loading=AppState.active_lead_action_id == lead_id,
                     flex="1",
                 ),
                 rx.button(
@@ -108,6 +108,7 @@ def _gate1_card(lead: dict[str, Any]) -> rx.Component:
                     variant="soft",
                     size="2",
                     on_click=lambda: AppState.discard_lead(lead_id),
+                    loading=AppState.active_lead_action_id == lead_id,
                     flex="1",
                 ),
                 width="100%",
@@ -177,7 +178,7 @@ def _gate2_card(lead: dict[str, Any]) -> rx.Component:
                     color_scheme="blue",
                     size="2",
                     on_click=lambda: AppState.send_draft(lead_id),
-                    loading=AppState.is_loading,
+                    loading=AppState.active_lead_action_id == lead_id,
                     flex="2",
                 ),
                 rx.button(

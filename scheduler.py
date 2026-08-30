@@ -42,6 +42,9 @@ DEFAULT_LOCATIONS: list[str] = [
 ]
 
 
+from collections.abc import Callable, Coroutine
+
+
 async def run_scouting_pipeline(
     verticals: list[ICPVertical | str] | None = None,
     locations: list[str] | None = None,
@@ -50,6 +53,7 @@ async def run_scouting_pipeline(
     push_to_telegram: bool = True,
     bot: Bot | None = None,
     chat_id: str | int | None = None,
+    progress_callback: Callable[[str], None | Coroutine[None, None, None]] | None = None,
 ) -> dict[str, int]:
     """Execute an end-to-end automated prospect discovery, extraction, scoring, and HITL push cycle.
 
@@ -81,8 +85,19 @@ async def run_scouting_pipeline(
     if push_to_telegram and not telegram_bot and settings.TELEGRAM_BOT_TOKEN:
         telegram_bot = Bot(token=settings.TELEGRAM_BOT_TOKEN)
 
-    logger.info(
-        f"Starting scouting cycle: {len(target_verticals)} verticals, "
+    async def _emit_log(msg: str) -> None:
+        logger.info(msg)
+        if progress_callback:
+            try:
+                if asyncio.iscoroutinefunction(progress_callback):
+                    await progress_callback(msg)
+                else:
+                    progress_callback(msg)
+            except Exception as exc:  # noqa: BLE001
+                logger.debug(f"Progress callback notification failed: {exc}")
+
+    await _emit_log(
+        f"🚀 [INIT] Starting scouting cycle: {len(target_verticals)} verticals, "
         f"{len(target_locations)} locations (Threshold: {score_threshold}/10)"
     )
 
@@ -93,60 +108,80 @@ async def run_scouting_pipeline(
 
             try:
                 # 1. Discovery Search
+                await _emit_log(f"🔍 [Step 1/6] Searching {vert_enum.value} prospects in '{location}' via DuckDuckGo & Overpass...")
                 prospects = await discover_prospects(
                     vertical=vert_enum,
                     location=location,
                     max_results=max_prospects_per_vertical,
                 )
                 stats["discovered"] += len(prospects)
-                logger.info(f"Discovered {len(prospects)} candidates for {vert_enum.value} in {location}")
+                await _emit_log(f"  • Discovered {len(prospects)} candidate(s) for {vert_enum.value} in {location}")
 
-                for prospect in prospects:
+                for idx, prospect in enumerate(prospects, start=1):
                     target_url = prospect.website_url
                     if not target_url:
                         continue
 
                     # 2. Deduplication Check
+                    await _emit_log(f"🧹 [Step 2/6] [{idx}/{len(prospects)}] Checking deduplication: {prospect.company_name} ({target_url})...")
                     existing = await get_lead_by_url(target_url)
                     if existing:
-                        logger.debug(f"Skipping duplicate prospect: {target_url}")
+                        await _emit_log(f"  ⏭️ Skipping duplicate prospect already in database: {target_url}")
                         stats["skipped_duplicate"] += 1
                         continue
 
                     stats["processed"] += 1
-                    logger.info(f"Processing prospect: {prospect.company_name} ({target_url})")
 
                     # 3. Web Extraction
+                    await _emit_log(f"🌐 [Step 3/6] Crawling & hydrating SPA markdown with Crawl4AI: {target_url}...")
                     crawl_result = await extract_lead_content(target_url)
                     if not crawl_result or not crawl_result.markdown:
-                        logger.warning(f"Could not extract markdown content for {target_url}")
+                        await _emit_log(f"  ⚠️ Could not extract markdown content for {target_url}")
                         continue
+                    await _emit_log(f"  • Scraped {len(crawl_result.markdown)} chars, found {len(crawl_result.emails_found)} raw email(s)")
 
                     # 4. Email Resolution & Verification
+                    await _emit_log(f"✉️ [Step 4/6] Verifying deliverable decision-maker email via DNS MX & SMTP sockets for {prospect.company_name}...")
                     resolved_email, _ver_res = await resolve_lead_email(
                         domain_or_url=target_url,
                         discovered_emails=crawl_result.emails_found,
                     )
+                    if resolved_email:
+                        await _emit_log(f"  ✅ Deliverable contact resolved: {resolved_email}")
+                    else:
+                        await _emit_log("  ℹ️ No direct SMTP-verified email found, using domain fallback")
 
                     # 5. LLM Evaluation & ICP Scoring
+                    await _emit_log("🤖 [Step 5/6] Evaluating operational bottlenecks & scoring fit with Gemini 3.5 Flash...")
                     evaluation = await evaluate_lead(
                         markdown_content=crawl_result.markdown,
                         company_name=crawl_result.company_name or prospect.company_name or crawl_result.page_title,
                         website_url=target_url,
                         decision_maker_email=resolved_email or "",
+                        discovered_contacts={
+                            "resolved_email": resolved_email or "",
+                            "emails_found": crawl_result.emails_found,
+                            "phones_found": crawl_result.phones_found,
+                            "social_links": crawl_result.social_links,
+                        },
+                    )
+
+                    await _emit_log(
+                        f"  🎯 Evaluation Score: {evaluation.fit_score}/10 for '{evaluation.company_name}' "
+                        f"| Pitch: '{evaluation.suggested_angle}'"
                     )
 
                     # 6. Qualification Filter & Gate 1 Push
                     if evaluation.fit_score < score_threshold:
-                        logger.info(
-                            f"Lead disqualified: {evaluation.company_name} "
-                            f"(Score: {evaluation.fit_score}/{score_threshold})"
+                        await _emit_log(
+                            f"  ❌ Disqualified: Score {evaluation.fit_score} is below threshold {score_threshold}."
                         )
                         continue
 
                     stats["qualified"] += 1
 
                     # Persist Lead to Database
+                    await _emit_log("💾 Saving qualified lead to Supabase (Status: PENDING_LEAD_REVIEW)...")
                     lead_record = LeadRecord(
                         company_name=evaluation.company_name,
                         website_url=evaluation.website_url,
@@ -166,6 +201,7 @@ async def run_scouting_pipeline(
 
                     # Push Gate 1 Card to Telegram
                     if push_to_telegram and telegram_bot and target_chat_id and saved_id:
+                        await _emit_log(f"📱 [Step 6/6] Pushing Gate 1 interactive card to Telegram for {evaluation.company_name}...")
                         msg_id = await send_lead_review_card(
                             bot=telegram_bot,
                             chat_id=target_chat_id,
@@ -174,10 +210,15 @@ async def run_scouting_pipeline(
                         )
                         if msg_id:
                             stats["pushed"] += 1
-                            logger.info(f"Pushed Gate 1 review card to Telegram (Msg ID: {msg_id})")
+                            await _emit_log(f"  ✅ Gate 1 review card pushed to Telegram (Msg ID: {msg_id})")
 
             except Exception as exc:  # noqa: BLE001
-                logger.error(f"Error during scouting for {vertical} in {location}: {exc}")
+                await _emit_log(f"⚠️ Error during scouting for {vertical} in {location}: {exc}")
+
+    await _emit_log(
+        f"🏁 [COMPLETE] Scouting finished: Discovered {stats['discovered']}, "
+        f"Processed {stats['processed']}, Qualified {stats['qualified']}, Pushed {stats['pushed']}."
+    )
 
     logger.info(f"Scouting cycle completed: {stats}")
     return stats

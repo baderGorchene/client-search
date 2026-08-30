@@ -4,7 +4,7 @@
 - **Language**: Python 3.12+ (AsyncIO first)
 - **Package Management**: `uv` / standard virtualenv
 - **Web Crawling & Discovery**: `crawl4ai` (AsyncWebCrawler), `duckduckgo-search`, `playwright`
-- **LLM Gateway & Schemas**: `litellm` (Gemini 3.7 Flash primary, Groq Llama 3.3 70B fallback), `pydantic` v2
+- **LLM Gateway & Schemas**: `litellm` (Gemini 3.5 Flash primary, Gemini 3.5 Flash-Lite fallback), `pydantic` v2
 - **Telegram HITL Interface**: `python-telegram-bot` (v21+ async handlers & inline keyboards)
 - **Web UI & Operations Dashboard**: `reflex` (Pure Python reactive web apps & Tailwind components)
 - **Database & Storage**: `supabase` (PostgreSQL async queries & connection pooling)
@@ -28,7 +28,7 @@
 │   └── crawler.py           # Crawl4AI markdown extraction and noise stripping
 ├── evaluators/
 │   ├── schemas.py           # Pydantic v2 data models (LeadEvaluation, EmailDraft)
-│   └── llm_service.py       # LiteLLM router (Gemini 3.7 Flash + Groq fallback)
+│   └── llm_service.py       # LiteLLM router (Gemini 3.5 Flash + 3.5 Flash-Lite fallback)
 ├── verification/
 │   └── email_verifier.py    # Local async DNS MX & raw SMTP socket verifier
 ├── bot/

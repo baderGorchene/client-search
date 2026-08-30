@@ -123,7 +123,7 @@ async def test_evaluate_lead_primary_success(mocker):
 
 
 @pytest.mark.asyncio
-async def test_evaluate_lead_fallback_to_groq(mocker):
+async def test_evaluate_lead_fallback_success(mocker):
     mock_eval_data = {
         "company_name": "Swift Haulage",
         "website_url": "https://swifthaul.com",
