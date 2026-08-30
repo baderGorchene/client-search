@@ -439,4 +439,3 @@ MIN\_LEAD\_FIT\_SCORE=7
 | **Verification** | **`py3-validate-email`** | Paid NeverBounce | Local async SMTP socket handshake verifies mailbox existence for $0.00. |
 | **Database** | **Supabase (Postgres)** | Local SQLite | Managed PostgreSQL cloud database with visual dashboard accessible from anywhere. |
 | **Architecture** | **Modular Monolith** | Microservices | Zero inter-service network latency, single process, $0 hosting cost, easy local debugging. |
-

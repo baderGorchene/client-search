@@ -15,10 +15,10 @@
   - Verification: `uv run pytest tests/test_searcher.py`
   - Status: Completed
 
-- [ ] **Task 4: Web Extraction Pipeline (Crawl4AI)**
+- [x] **Task 4: Web Extraction Pipeline (Crawl4AI)**
   - Objective: Implement `discovery/crawler.py` using Crawl4AI `AsyncWebCrawler` with SPA hydration and boilerplate/noise stripping to markdown.
   - Verification: `uv run pytest tests/test_crawler.py`
-  - Status: Pending
+  - Status: Completed
 
 - [ ] **Task 5: Zero-Cost Email Resolution & Verification Gate**
   - Objective: Implement `verification/email_verifier.py` with async DNS MX validation and direct SMTP socket handshake checks.
