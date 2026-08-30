@@ -270,7 +270,8 @@ async def test_app_state_trigger_scouting(mocker):
         return_value={"discovered": 5, "qualified": 2},
     )
 
-    await state.trigger_scouting()
+    async for _ in state.trigger_scouting():
+        pass
 
     mock_pipeline.assert_called_once_with(
         verticals=["logistics"],

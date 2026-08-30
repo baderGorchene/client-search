@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections import Counter
 from typing import Any
 
@@ -251,18 +252,21 @@ class AppState(rx.State):
             logger.exception("Failed to save edited draft")
             self.status_message = f"Save failed: {exc}"
 
-    async def trigger_scouting(self) -> None:
-        """Execute a one-shot prospect scouting cycle from the web dashboard."""
+    async def trigger_scouting(self):  # type: ignore[no-untyped-def]
+        """Execute a one-shot prospect scouting cycle with real-time log streaming."""
         self.is_scouting = True
-        self.execution_logs = []
+        self.execution_logs = ["🚀 [INIT] Starting background scouting cycle..."]
+        self.current_step_description = "Starting scouting cycle..."
         self.status_message = f"Running discovery for {self.scout_vertical} in {self.scout_location}..."
+        yield
+
+        queue: asyncio.Queue[str] = asyncio.Queue()
 
         async def _on_progress(msg: str) -> None:
-            self.execution_logs.append(msg)
-            self.current_step_description = msg
+            await queue.put(msg)
 
-        try:
-            stats = await run_scouting_pipeline(
+        task = asyncio.create_task(
+            run_scouting_pipeline(
                 verticals=[self.scout_vertical],
                 locations=[self.scout_location],
                 max_prospects_per_vertical=self.scout_limit,
@@ -270,17 +274,32 @@ class AppState(rx.State):
                 push_to_telegram=True,
                 progress_callback=_on_progress,
             )
+        )
+
+        while not task.done() or not queue.empty():
+            try:
+                msg = await asyncio.wait_for(queue.get(), timeout=0.1)
+                self.execution_logs.append(msg)
+                self.current_step_description = msg
+                yield
+            except TimeoutError:
+                yield
+
+        try:
+            stats = task.result()
             self.status_message = (
                 f"Scouting complete: Found {stats.get('discovered', 0)}, "
                 f"Qualified {stats.get('qualified', 0)} new prospects."
             )
-            await self.fetch_leads()
         except Exception as exc:  # noqa: BLE001
             logger.exception("Scouting execution failed")
             self.status_message = f"Scouting failed: {exc}"
             self.execution_logs.append(f"❌ Execution error: {exc}")
         finally:
             self.is_scouting = False
+
+        yield
+        await self.fetch_leads()
 
     def clear_execution_logs(self) -> None:
         """Clear execution log history."""
