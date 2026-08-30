@@ -30,10 +30,10 @@
   - Verification: `uv run pytest tests/test_llm_service.py`
   - Status: Completed
 
-- [ ] **Task 7: Mobile HITL Telegram Bot (Gate 1 & Gate 2)**
+- [x] **Task 7: Mobile HITL Telegram Bot (Gate 1 & Gate 2)**
   - Objective: Implement `bot/telegram_bot.py` and `bot/callbacks.py` supporting Gate 1 (Lead qualification) and Gate 2 (Draft approval/editing) inline actions.
   - Verification: `uv run pytest tests/test_telegram_bot.py`
-  - Status: Pending
+  - Status: Completed
 
 - [ ] **Task 8: Outbox Dispatcher with Rate Limiting & Safety Jitter**
   - Objective: Implement `dispatch/gmail_sender.py` with Gmail API OAuth2 integration, 10–25 minute random jitter, and daily email volume capping.
