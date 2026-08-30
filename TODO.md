@@ -20,15 +20,15 @@
   - Verification: `uv run pytest tests/test_crawler.py`
   - Status: Completed
 
-- [ ] **Task 5: Zero-Cost Email Resolution & Verification Gate**
+- [x] **Task 5: Zero-Cost Email Resolution & Verification Gate**
   - Objective: Implement `verification/email_verifier.py` with async DNS MX validation and direct SMTP socket handshake checks.
   - Verification: `uv run pytest tests/test_verifier.py`
-  - Status: Pending
+  - Status: Completed
 
-- [ ] **Task 6: Intelligence & Copywriting LLM Router**
+- [ ] **Task 6: Intelligence & Copywriting LLM Router** (Automated Tests Passed - Awaiting Human Validation)
   - Objective: Implement `evaluators/llm_service.py` with LiteLLM routing (Gemini 3.7 Flash primary, Groq Llama 3.3 fallback) and strict structured schema enforcement.
   - Verification: `uv run pytest tests/test_llm_service.py`
-  - Status: Pending
+  - Status: Awaiting Human Validation
 
 - [ ] **Task 7: Mobile HITL Telegram Bot (Gate 1 & Gate 2)**
   - Objective: Implement `bot/telegram_bot.py` and `bot/callbacks.py` supporting Gate 1 (Lead qualification) and Gate 2 (Draft approval/editing) inline actions.
