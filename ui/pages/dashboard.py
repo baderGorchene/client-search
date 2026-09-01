@@ -4,55 +4,106 @@ import reflex as rx
 
 from ui.components.execution_logs import execution_logs_console
 from ui.components.kanban import kanban_board
-from ui.components.modals import edit_draft_modal
+from ui.components.map_view import leads_geo_map
+from ui.components.modals import edit_draft_modal, scout_campaign_modal
 from ui.components.stat_cards import stat_cards
 from ui.state import AppState
 
 
 def _scout_trigger_bar() -> rx.Component:
-    """Render quick prospect discovery trigger bar."""
+    """Render campaign discovery launcher bar with active parameter indicators."""
     return rx.card(
         rx.hstack(
+            # Left Info
             rx.hstack(
-                rx.icon("sparkles", size=20, color="#3b82f6"),
+                rx.icon("sparkles", size=22, color="#38bdf8"),
                 rx.vstack(
-                    rx.text("Run Prospecting Cycle", size="2", weight="bold", color="white"),
-                    rx.text("Trigger zero-cost DuckDuckGo & Overpass discovery", size="1", color="#94a3b8"),
+                    rx.text("Autonomous Discovery Engine", size="2", weight="bold", color="white"),
+                    rx.text("Multi-business keyword search, localized AI reasoning, & dynamic filtering", size="1", color="#94a3b8"),
                     spacing="0",
                 ),
                 align="center",
                 spacing="2",
-                min_width="260px",
+                min_width="280px",
             ),
+            # Middle Configuration Badges
             rx.hstack(
-                rx.select(
-                    ["logistics", "real_estate", "boutique_agencies", "ecommerce"],
-                    value=AppState.scout_vertical,
-                    on_change=AppState.set_scout_vertical,
-                    size="2",
+                rx.badge(
+                    rx.hstack(
+                        rx.icon("map-pin", size=12),
+                        rx.text(AppState.scout_location),
+                        spacing="1",
+                        align="center",
+                    ),
+                    color_scheme="blue",
+                    variant="surface",
+                    size="1",
                 ),
-                rx.input(
-                    value=AppState.scout_location,
-                    on_change=AppState.set_scout_location,
-                    placeholder="Location (e.g. Chicago, IL)",
-                    size="2",
-                    width="220px",
+                rx.badge(
+                    rx.hstack(
+                        rx.icon("languages", size=12),
+                        rx.text(AppState.scout_language_label),
+                        spacing="1",
+                        align="center",
+                    ),
+                    color_scheme="purple",
+                    variant="surface",
+                    size="1",
                 ),
+                rx.badge(
+                    rx.hstack(
+                        rx.icon("target", size=12),
+                        rx.text(f"Min Score: {AppState.scout_min_score}/10"),
+                        spacing="1",
+                        align="center",
+                    ),
+                    color_scheme="cyan",
+                    variant="surface",
+                    size="1",
+                ),
+                rx.badge(
+                    rx.hstack(
+                        rx.icon("tag", size=12),
+                        rx.text(f"{AppState.scout_keywords_count} Niches"),
+                        spacing="1",
+                        align="center",
+                    ),
+                    color_scheme="green",
+                    variant="surface",
+                    size="1",
+                ),
+                spacing="2",
+                align="center",
+                wrap="wrap",
+            ),
+            # Right Action Buttons
+            rx.hstack(
                 rx.button(
                     rx.hstack(
-                        rx.icon("search", size=14),
-                        rx.text("Start Scouting"),
+                        rx.icon("sliders-horizontal", size=14),
+                        rx.text("New Campaign"),
                         spacing="1",
                         align="center",
                     ),
                     color_scheme="blue",
                     size="2",
+                    on_click=AppState.open_search_modal,
+                ),
+                rx.button(
+                    rx.hstack(
+                        rx.icon("play", size=14),
+                        rx.text("Run Quick Cycle"),
+                        spacing="1",
+                        align="center",
+                    ),
+                    variant="soft",
+                    color_scheme="cyan",
+                    size="2",
                     on_click=AppState.trigger_scouting,
                     loading=AppState.is_scouting,
                 ),
-                spacing="3",
+                spacing="2",
                 align="center",
-                wrap="wrap",
             ),
             justify="between",
             align="center",
@@ -66,6 +117,47 @@ def _scout_trigger_bar() -> rx.Component:
         padding="1rem 1.25rem",
         margin_bottom="1.5rem",
         width="100%",
+    )
+
+
+def _view_mode_switcher() -> rx.Component:
+    """Render view mode selector buttons (HITL Kanban Pipeline vs. Interactive Geo Map)."""
+    return rx.hstack(
+        rx.hstack(
+            rx.icon("layout-grid", size=16, color="#94a3b8"),
+            rx.text("Pipeline View Mode:", size="2", color="#94a3b8", weight="medium"),
+            spacing="1",
+            align="center",
+        ),
+        rx.segmented_control.root(
+            rx.segmented_control.item(
+                rx.hstack(
+                    rx.icon("kanban", size=14),
+                    rx.text("HITL Kanban"),
+                    spacing="1",
+                    align="center",
+                ),
+                value="kanban",
+            ),
+            rx.segmented_control.item(
+                rx.hstack(
+                    rx.icon("map-pin", size=14),
+                    rx.text("Leads Geo Map"),
+                    spacing="1",
+                    align="center",
+                ),
+                value="map",
+            ),
+            value=AppState.view_mode,
+            on_change=lambda val: AppState.set_view_mode(val),
+            size="2",
+            color_scheme="blue",
+        ),
+        justify="between",
+        align="center",
+        width="100%",
+        margin_top="1rem",
+        margin_bottom="0.5rem",
     )
 
 
@@ -84,16 +176,24 @@ def dashboard_page() -> rx.Component:
                 width="100%",
             ),
         ),
-        # Quick Scout Runner Bar
+        # Campaign Discovery Trigger Bar
         _scout_trigger_bar(),
-        # Live Execution Steps Terminal Console
+        # Live Tabbed Execution Log Feeds & Stage Notifications
         execution_logs_console(),
         # Key Performance Metrics
         stat_cards(),
-        # Dual-Gate Mobile HITL Kanban
-        kanban_board(),
-        # Edit Modal Dialog
+        # View Mode Switcher
+        _view_mode_switcher(),
+        # Conditional Display: Kanban Board vs. Interactive Geo Map
+        rx.cond(
+            AppState.view_mode == "map",
+            leads_geo_map(),
+            kanban_board(),
+        ),
+        # Edit Draft Modal Dialog
         edit_draft_modal(),
+        # Custom Prospecting Campaign Modal Dialog
+        scout_campaign_modal(),
         spacing="2",
         width="100%",
         align="start",

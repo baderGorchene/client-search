@@ -46,8 +46,16 @@ from collections.abc import Callable, Coroutine
 async def run_scouting_pipeline(
     verticals: list[ICPVertical | str] | None = None,
     locations: list[str] | None = None,
+    keywords: list[str] | str | None = None,
+    language: str = "en",
     max_prospects_per_vertical: int = 3,
     min_fit_score: int | None = None,
+    custom_angle: str = "",
+    core_offer: str | None = None,
+    target_criteria: str | None = None,
+    disqualified_criteria: str | None = None,
+    disqualified_domains: list[str] | None = None,
+    verify_strict: bool = True,
     push_to_telegram: bool = True,
     bot: Bot | None = None,
     chat_id: str | int | None = None,
@@ -56,17 +64,25 @@ async def run_scouting_pipeline(
     """Execute an end-to-end automated prospect discovery, extraction, scoring, and HITL push cycle.
 
     Workflow:
-      1. Discovery: Search ICP verticals across locations using DuckDuckGo / Overpass.
+      1. Discovery: Search custom business keywords or verticals across locations using DuckDuckGo / Overpass.
       2. Deduplication: Check if prospective domain/URL is already in Supabase.
       3. Extraction: Crawl target website with Crawl4AI to markdown & extract emails.
       4. Verification: Resolve verified corporate decision maker email via DNS MX & SMTP handshake.
-      5. Evaluation: Evaluate operations and score automation fit (1-10) using LiteLLM router.
+      5. Evaluation: Evaluate operations with dynamic user-defined prompt constraints using Gemini 3.5 Flash.
       6. Gate 1 Push: Persist qualified leads (score >= min_fit_score) and push interactive card to Telegram.
 
     Returns:
         dict[str, int]: Execution metrics (discovered, processed, qualified, pushed).
     """
-    target_verticals = verticals or DEFAULT_VERTICALS
+    # Parse target keywords or fallback to verticals
+    if keywords:
+        if isinstance(keywords, str):
+            target_keywords = [k.strip() for k in keywords.split(",") if k.strip()]
+        else:
+            target_keywords = list(keywords)
+    else:
+        target_keywords = [str(getattr(v, "value", v)) for v in (verticals or DEFAULT_VERTICALS)]
+
     target_locations = locations or DEFAULT_LOCATIONS
     score_threshold = min_fit_score if min_fit_score is not None else settings.MIN_LEAD_FIT_SCORE
     target_chat_id = chat_id or settings.TELEGRAM_CHAT_ID
@@ -77,6 +93,8 @@ async def run_scouting_pipeline(
         "qualified": 0,
         "pushed": 0,
         "skipped_duplicate": 0,
+        "disqualified": 0,
+        "pushed_to_telegram": 0,
     }
 
     telegram_bot = bot
@@ -95,25 +113,25 @@ async def run_scouting_pipeline(
                 logger.debug(f"Progress callback notification failed: {exc}")
 
     await _emit_log(
-        f"🚀 [INIT] Starting scouting cycle: {len(target_verticals)} verticals, "
-        f"{len(target_locations)} locations (Threshold: {score_threshold}/10)"
+        f"🚀 [INIT] Starting scouting cycle: {len(target_keywords)} keyword(s)/vertical(s), "
+        f"{len(target_locations)} location(s), Language: '{language.upper()}' (Threshold: {score_threshold}/10)"
     )
 
-    for vertical in target_verticals:
+    for kw in target_keywords:
         for location in target_locations:
-            vert_str = str(getattr(vertical, "value", vertical)).lower()
-            vert_enum = ICPVertical._value2member_map_.get(vert_str, ICPVertical.LOGISTICS)
-
             try:
                 # 1. Discovery Search
-                await _emit_log(f"🔍 [Step 1/6] Searching {vert_enum.value} prospects in '{location}' via DuckDuckGo & Overpass...")
+                await _emit_log(f"🔍 [Step 1/6] Searching '{kw}' prospects in '{location}' ({language.upper()}) via DuckDuckGo & Overpass...")
                 prospects = await discover_prospects(
-                    vertical=vert_enum,
+                    vertical=kw,
                     location=location,
                     max_results=max_prospects_per_vertical,
+                    language=language,
+                    keywords=[kw],
+                    disqualified_domains=disqualified_domains,
                 )
                 stats["discovered"] += len(prospects)
-                await _emit_log(f"  • Discovered {len(prospects)} candidate(s) for {vert_enum.value} in {location}")
+                await _emit_log(f"  • Discovered {len(prospects)} candidate(s) for '{kw}' in {location}")
 
                 for idx, prospect in enumerate(prospects, start=1):
                     target_url = prospect.website_url
@@ -143,6 +161,7 @@ async def run_scouting_pipeline(
                     resolved_email, _ver_res = await resolve_lead_email(
                         domain_or_url=target_url,
                         discovered_emails=crawl_result.emails_found,
+                        strict_smtp=verify_strict,
                     )
                     if resolved_email:
                         await _emit_log(f"  ✅ Deliverable contact resolved: {resolved_email}")
@@ -150,12 +169,17 @@ async def run_scouting_pipeline(
                         await _emit_log("  ℹ️ No direct SMTP-verified email found, using domain fallback")
 
                     # 5. LLM Evaluation & ICP Scoring
-                    await _emit_log("🤖 [Step 5/6] Evaluating operational bottlenecks & scoring fit with Gemini 3.5 Flash...")
+                    await _emit_log(f"🤖 [Step 5/6] Evaluating operational bottlenecks & scoring fit with Gemini 3.5 Flash ({language.upper()})...")
                     evaluation = await evaluate_lead(
                         markdown_content=crawl_result.markdown,
                         company_name=crawl_result.company_name or prospect.company_name or crawl_result.page_title,
                         website_url=target_url,
                         decision_maker_email=resolved_email or "",
+                        language=language,
+                        custom_angle=custom_angle,
+                        core_offer=core_offer,
+                        target_criteria=target_criteria,
+                        disqualified_criteria=disqualified_criteria,
                         discovered_contacts={
                             "resolved_email": resolved_email or "",
                             "emails_found": crawl_result.emails_found,
@@ -191,6 +215,7 @@ async def run_scouting_pipeline(
                         pros=evaluation.pros,
                         cons=evaluation.cons,
                         suggested_angle=evaluation.suggested_angle,
+                        location=evaluation.location or getattr(prospect, "location", None) or location,
                         status=LeadStatus.PENDING_LEAD_REVIEW,
                     )
 
@@ -211,7 +236,7 @@ async def run_scouting_pipeline(
                             await _emit_log(f"  ✅ Gate 1 review card pushed to Telegram (Msg ID: {msg_id})")
 
             except Exception as exc:  # noqa: BLE001
-                await _emit_log(f"⚠️ Error during scouting for {vertical} in {location}: {exc}")
+                await _emit_log(f"⚠️ Error during scouting for '{kw}' in {location}: {exc}")
 
     await _emit_log(
         f"🏁 [COMPLETE] Scouting finished: Discovered {stats['discovered']}, "

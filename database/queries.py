@@ -29,6 +29,7 @@ def _prepare_lead_payload(lead_data: LeadEvaluation | LeadRecord | dict[str, Any
             "pros": lead_data.pros,
             "cons": lead_data.cons,
             "suggested_angle": lead_data.suggested_angle,
+            "location": lead_data.location or None,
             "status": LeadStatus.PENDING_LEAD_REVIEW.value,
         }
     elif isinstance(lead_data, dict):
@@ -185,7 +186,9 @@ async def update_lead_status(
 
 async def update_lead_draft(
     lead_id: str | UUID,
-    draft: EmailDraft | dict[str, str],
+    draft: EmailDraft | dict[str, str] | None = None,
+    email_subject: str | None = None,
+    email_body: str | None = None,
     status: LeadStatus | str = LeadStatus.DRAFT_GENERATED,
     client: AsyncClient | None = None,
 ) -> dict[str, Any] | None:
@@ -193,7 +196,9 @@ async def update_lead_draft(
 
     Args:
         lead_id: Lead UUID.
-        draft: Generated subject and body (EmailDraft or dict).
+        draft: Generated subject and body (EmailDraft or dict), optional if subject/body passed.
+        email_subject: Explicit subject line string.
+        email_body: Explicit body string.
         status: Target status after draft generation.
         client: Optional AsyncClient instance.
 
@@ -201,12 +206,15 @@ async def update_lead_draft(
         dict or None: Updated lead record.
     """
     status_val = status.value if isinstance(status, LeadStatus) else str(status)
+    subject = email_subject or ""
+    body = email_body or ""
+
     if isinstance(draft, EmailDraft):
-        subject = draft.subject
-        body = draft.body
-    else:
-        subject = draft.get("subject", "")
-        body = draft.get("body", "")
+        subject = draft.subject or subject
+        body = draft.body or body
+    elif isinstance(draft, dict):
+        subject = draft.get("subject") or draft.get("email_subject") or subject
+        body = draft.get("body") or draft.get("email_body") or body
 
     return await update_lead(
         lead_id=lead_id,

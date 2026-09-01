@@ -259,10 +259,22 @@ async def test_app_state_save_edited_draft(mocker):
 @pytest.mark.asyncio
 async def test_app_state_trigger_scouting(mocker):
     state = AppState()
-    state.scout_vertical = "logistics"
+    state.scout_keywords_list = ["freight forwarders", "logistics"]
     state.scout_location = "Dallas, TX"
+    state.scout_language = "en"
     state.scout_limit = 3
     state.scout_min_score = 7
+    state.scout_custom_angle = "AI invoice OCR"
+    state.scout_offer_preset = "custom"
+    state.scout_custom_offer_notes = "Custom OCR offer"
+    state.scout_target_bottlenecks = ["Target SMBs"]
+    state.scout_exclude_freelancers = False
+    state.scout_exclude_local_kiosks = False
+    state.scout_exclude_no_digital = False
+    state.scout_custom_disqualification = "Solo freelancers"
+    state.scout_excluded_domains_list = ["yelp.com", "yellowpages.com"]
+    state.scout_verify_strict = True
+    state.scout_push_telegram = True
 
     mock_pipeline = mocker.patch(
         "ui.state.run_scouting_pipeline",
@@ -274,15 +286,96 @@ async def test_app_state_trigger_scouting(mocker):
         pass
 
     mock_pipeline.assert_called_once_with(
-        verticals=["logistics"],
+        keywords=["freight forwarders", "logistics"],
         locations=["Dallas, TX"],
+        language="en",
         max_prospects_per_vertical=3,
         min_fit_score=7,
+        custom_angle="AI invoice OCR",
+        core_offer="Custom productized workflow automation.\nSpecific Focus: Custom OCR offer",
+        target_criteria="- Companies facing: Target SMBs",
+        disqualified_criteria="- Solo freelancers",
+        disqualified_domains=["yelp.com", "yellowpages.com"],
+        verify_strict=True,
         push_to_telegram=True,
         progress_callback=mocker.ANY,
     )
     assert state.is_scouting is False
     assert "Scouting complete" in state.status_message
+
+
+def test_app_state_campaign_modal_management():
+    """Verify campaign configuration modal state transitions, tag manipulation, and structured constraints."""
+    state = AppState()
+    assert state.is_search_modal_open is False
+
+    state.open_search_modal()
+    assert state.is_search_modal_open is True
+
+    # 1. Keyword Tags & Presets
+    initial_count = len(state.scout_keywords_list)
+    state.set_new_keyword_input("Dental Clinics")
+    state.add_scout_keyword()
+    assert len(state.scout_keywords_list) == initial_count + 1
+    assert "Dental Clinics" in state.scout_keywords_list
+    assert state.new_keyword_input == ""
+
+    state.add_keyword_preset("Commercial Roofing")
+    assert "Commercial Roofing" in state.scout_keywords_list
+
+    state.remove_scout_keyword("Dental Clinics")
+    assert "Dental Clinics" not in state.scout_keywords_list
+
+    # 2. Excluded Domains Blocklist Tags
+    dom_count = len(state.scout_excluded_domains_list)
+    state.set_new_excluded_domain_input("https://www.spamdirectory.com/test")
+    state.add_excluded_domain()
+    assert len(state.scout_excluded_domains_list) == dom_count + 1
+    assert "spamdirectory.com" in state.scout_excluded_domains_list
+
+    state.remove_excluded_domain("spamdirectory.com")
+    assert "spamdirectory.com" not in state.scout_excluded_domains_list
+
+    # 3. Offer Presets & Computed Strings
+    state.set_scout_offer_preset("ocr")
+    assert "OCR" in state.scout_resolved_core_offer
+
+    state.set_scout_custom_offer_notes("Focus on TMS dispatching")
+    assert "TMS dispatching" in state.scout_resolved_core_offer
+
+    # 4. Bottlenecks Tags & Presets
+    bot_count = len(state.scout_target_bottlenecks)
+    state.set_new_bottleneck_input("Customs duty calculation delays")
+    state.add_target_bottleneck()
+    assert len(state.scout_target_bottlenecks) == bot_count + 1
+    assert "Customs duty calculation delays" in state.scout_resolved_target_criteria
+
+    state.remove_target_bottleneck("Customs duty calculation delays")
+    assert "Customs duty calculation delays" not in state.scout_resolved_target_criteria
+
+    # 5. Disqualification Checkboxes
+    state.set_scout_exclude_freelancers(True)
+    state.set_scout_exclude_local_kiosks(True)
+    state.set_scout_custom_disqualification("Exclude franchises with >50 locations")
+    assert "freelancers" in state.scout_resolved_disqualified_criteria
+    assert "Exclude franchises with >50 locations" in state.scout_resolved_disqualified_criteria
+
+    # 6. Basic Settings
+    state.set_scout_language("fr")
+    assert state.scout_language == "fr"
+    assert "French" in state.scout_language_label
+
+    state.set_scout_min_score(8)
+    assert state.scout_min_score == 8
+
+    state.set_scout_limit(10)
+    assert state.scout_limit == 10
+
+    state.set_active_log_tab("step_3")
+    assert state.active_log_tab == "step_3"
+
+    state.close_search_modal()
+    assert state.is_search_modal_open is False
 
 
 # ==============================================================================
@@ -351,6 +444,9 @@ def test_app_state_reset_pipeline_nodes():
 
 def test_ui_components_render():
     """Verify all UI components and pages compile into valid Reflex component structures."""
+    from ui.components.map_view import leads_geo_map
+    from ui.components.modals import scout_campaign_modal
+
     nav_comp = navbar()
     assert nav_comp is not None
 
@@ -360,8 +456,14 @@ def test_ui_components_render():
     kanban_comp = kanban_board()
     assert kanban_comp is not None
 
+    map_comp = leads_geo_map()
+    assert map_comp is not None
+
     modal_comp = edit_draft_modal()
     assert modal_comp is not None
+
+    scout_modal_comp = scout_campaign_modal()
+    assert scout_modal_comp is not None
 
     console_comp = execution_logs_console()
     assert console_comp is not None
@@ -375,6 +477,105 @@ def test_ui_components_render():
     settings_comp = settings_page()
     assert settings_comp is not None
 
+
+def test_app_state_map_computed_properties():
+    """Verify Leaflet map HTML generation and high-fit lead count metrics."""
+    state = AppState()
+    state.leads = [
+        {
+            "id": "1",
+            "company_name": "Apex Logistics",
+            "website_url": "https://apexlogistics.com",
+            "decision_maker_name": "Alice Smith",
+            "decision_maker_email": "alice@apexlogistics.com",
+            "fit_score": 10,
+            "status": "PENDING_LEAD_REVIEW",
+            "location": "Chicago, IL",
+            "summary": "Chicago freight and 3PL warehousing provider.",
+            "suggested_angle": "Paperwork OCR automation",
+        },
+        {
+            "id": "2",
+            "company_name": "Lone Star Solar",
+            "website_url": "https://lonestarsolar.com",
+            "decision_maker_name": "Bob Jones",
+            "decision_maker_email": "bob@lonestarsolar.com",
+            "fit_score": 7,
+            "status": "DRAFT_GENERATED",
+            "location": "Dallas, TX",
+            "summary": "Commercial solar installations.",
+            "suggested_angle": "Permit triage agent",
+        },
+    ]
+
+    assert state.high_fit_leads_count == 1
+    assert state.view_mode == "kanban"
+
+    state.set_view_mode("map")
+    assert state.view_mode == "map"
+
+    map_html = state.leaflet_map_html
+    assert "L.map('map'" in map_html
+    assert "Apex Logistics" in map_html
+    assert "Lone Star Solar" in map_html
+    assert "L.circleMarker" in map_html
+
     layout_comp = index()
     assert layout_comp is not None
+
+
+@pytest.mark.asyncio
+async def test_kanban_dnd_status_transitions(mocker):
+    """Verify drag and drop triggers appropriate lead workflow transitions."""
+    state = AppState()
+    state.leads = [
+        {
+            "id": "lead-101",
+            "company_name": "Apex Logistics",
+            "website_url": "https://apexlogistics.com",
+            "status": "PENDING_LEAD_REVIEW",
+            "email_subject": "quick question",
+            "email_body": "Hi, saw your workflow...",
+        },
+        {
+            "id": "lead-102",
+            "company_name": "Lone Star Solar",
+            "website_url": "https://lonestarsolar.com",
+            "status": "DRAFT_GENERATED",
+            "email_subject": "solar permit automation",
+            "email_body": "Hi Bob, we can streamline...",
+        },
+    ]
+
+    mock_update_status = mocker.patch("ui.state.update_lead_status", new_callable=AsyncMock)
+    mock_dispatch = mocker.patch(
+        "ui.state.dispatch_approved_lead",
+        new_callable=AsyncMock,
+        return_value={"to_email": "bob@lonestarsolar.com", "company_name": "Lone Star Solar"},
+    )
+    mocker.patch(
+        "ui.state.get_lead_by_id",
+        new_callable=AsyncMock,
+        return_value={
+            "id": "lead-101",
+            "company_name": "Apex Logistics",
+            "website_url": "https://apexlogistics.com",
+            "email_subject": "quick question",
+            "email_body": "Hi, saw your workflow...",
+        },
+    )
+    mocker.patch("ui.state.update_lead_draft", new_callable=AsyncMock)
+
+    # 1. Drag Gate 1 lead to Gate 2 -> should approve and transition to DRAFT_GENERATED
+    await state.handle_dnd_drop("lead-101:gate2")
+    mock_update_status.assert_any_call("lead-101", LeadStatus.DRAFT_GENERATED)
+
+    # 2. Drag Gate 2 draft to Dispatched -> should dispatch email
+    await state.handle_dnd_drop("lead-102:dispatched")
+    mock_dispatch.assert_called_once_with(lead_id="lead-102", apply_jitter=False)
+
+    # 3. Drag lead to Discarded -> should transition to LEAD_REJECTED
+    await state.handle_dnd_drop("lead-101:discarded")
+    mock_update_status.assert_any_call("lead-101", LeadStatus.LEAD_REJECTED)
+
 

@@ -29,25 +29,54 @@ def _resolve_api_key(model_name: str) -> str | None:
     return None
 
 
-# System prompts
-LEAD_EVALUATION_SYSTEM_PROMPT = """You are a Principal AI Automation Consultant and B2B Prospect Evaluator.
+# Default Prompt Constraints (can be customized dynamically via parameters)
+DEFAULT_CORE_OFFER = """High-value productized workflow automation ($0 infrastructure cost architectures):
+1. Unstructured Invoice, Waybill & Paperwork OCR Extraction Pipelines (eliminating manual ERP/spreadsheet entry).
+2. Real-Time Inbound Booking & Customer Triage Agents (voice/chat booking agents handling high ticket volumes).
+3. Custom Operations Dashboards & Cross-Platform Inventory Synchronization."""
+
+DEFAULT_TARGET_CRITERIA = """- Logistics, Freight & Trucking SMBs: High daily volume of bills of lading, customs manifests, dispatching overhead.
+- Real Estate & Property Management: Repetitive tenant maintenance tickets, scheduling friction, lead follow-up.
+- Boutique Agencies & E-commerce ($500k–$3M ARR): High order volume, manual supplier reconciliation, customer support triage."""
+
+DEFAULT_DISQUALIFIED_CRITERIA = """- Solo micro-businesses or single freelancers.
+- Local kiosks, restaurants, or businesses without meaningful digital operations or paperwork flow.
+- Companies without clear operational bottlenecks."""
+
+
+def build_lead_evaluation_system_prompt(
+    core_offer: str | None = None,
+    target_criteria: str | None = None,
+    disqualified_criteria: str | None = None,
+    language: str = "en",
+) -> str:
+    """Dynamically construct the Lead Evaluation system prompt with customizable constraints."""
+    offer_text = core_offer.strip() if core_offer and core_offer.strip() else DEFAULT_CORE_OFFER
+    target_text = target_criteria.strip() if target_criteria and target_criteria.strip() else DEFAULT_TARGET_CRITERIA
+    disqualified_text = (
+        disqualified_criteria.strip()
+        if disqualified_criteria and disqualified_criteria.strip()
+        else DEFAULT_DISQUALIFIED_CRITERIA
+    )
+
+    lang_clause = ""
+    if language.lower() == "fr":
+        lang_clause = "\n### Language Requirement:\nOutput summary, pros, cons, and suggested_angle strictly in French (Français)."
+    elif language.lower() == "ar":
+        lang_clause = "\n### Language Requirement:\nOutput summary, pros, cons, and suggested_angle strictly in Arabic (العربية)."
+
+    return f"""You are a Principal AI Automation Consultant and B2B Prospect Evaluator.
 Your goal is to evaluate candidate businesses against our Ideal Customer Profile (ICP) for productized AI and workflow automation services.
 
 ### Core Offer:
-High-value productized workflow automation ($0 infrastructure cost architectures):
-1. Unstructured Invoice, Waybill & Paperwork OCR Extraction Pipelines (eliminating manual ERP/spreadsheet entry).
-2. Real-Time Inbound Booking & Customer Triage Agents (voice/chat booking agents handling high ticket volumes).
-3. Custom Operations Dashboards & Cross-Platform Inventory Synchronization.
+{offer_text}
 
-### Target Verticals:
-- Logistics, Freight & Trucking SMBs: High daily volume of bills of lading, customs manifests, dispatching overhead.
-- Real Estate & Property Management: Repetitive tenant maintenance tickets, scheduling friction, lead follow-up.
-- Boutique Agencies & E-commerce ($500k–$3M ARR): High order volume, manual supplier reconciliation, customer support triage.
+### Target Qualification Criteria:
+{target_text}
 
-### Disqualified Targets:
-- Solo micro-businesses or single freelancers.
-- Local kiosks, restaurants, or businesses without meaningful digital operations or paperwork flow.
-- Companies without clear operational bottlenecks.
+### Disqualified Targets / Anti-Profile:
+{disqualified_text}
+{lang_clause}
 
 ### Evaluation Requirements:
 Analyze the provided website content and return a strict JSON object matching the requested schema:
@@ -58,11 +87,16 @@ Analyze the provided website content and return a strict JSON object matching th
 - decision_maker_email: Verified direct or corporate email if identified (or empty string).
 - fit_score: Integer from 1 to 10 (1-6: Low fit/disqualified, 7-8: Solid candidate, 9-10: High-priority immediate bottleneck).
 - summary: High-level summary of what the company does and their business model (maximum 500 characters).
+- location: Detected company headquarters city and country (e.g. "Tunis, Tunisia", "Sfax, Tunisia", "Paris, France", "Chicago, IL", or empty string).
 - pros: 1 to 3 bullet points identifying specific operational workflows or bottlenecks that can be automated (max 3 items).
 - cons: 1 to 3 friction points, risk factors, or reasons they may not buy (max 3 items).
 - suggested_angle: A specific, personalized 1-sentence value proposition hook addressing their biggest bottleneck (maximum 300 characters).
 
 Always output strictly valid JSON conforming to the schema with no additional commentary."""
+
+
+# Backward compatibility alias
+LEAD_EVALUATION_SYSTEM_PROMPT = build_lead_evaluation_system_prompt()
 
 EMAIL_DRAFTING_SYSTEM_PROMPT = """You are an elite B2B Cold Email Copywriter specializing in productized AI & workflow automation.
 Your goal is to write a highly personalized, compelling, zero-fluff cold outreach email based on the prospect's evaluated bottlenecks.
@@ -184,6 +218,11 @@ async def evaluate_lead(
     decision_maker_name: str | None = None,
     decision_maker_title: str | None = None,
     decision_maker_email: str | None = None,
+    language: str = "en",
+    custom_angle: str = "",
+    core_offer: str | None = None,
+    target_criteria: str | None = None,
+    disqualified_criteria: str | None = None,
     primary_model: str = DEFAULT_PRIMARY_MODEL,
     fallback_model: str = DEFAULT_FALLBACK_MODEL,
 ) -> LeadEvaluation:
@@ -197,6 +236,11 @@ async def evaluate_lead(
         decision_maker_name: Known decision maker name (optional).
         decision_maker_title: Known decision maker title (optional).
         decision_maker_email: Resolved email address (optional).
+        language: Target output language ('en', 'fr', 'ar').
+        custom_angle: Optional specific offer focus or automation angle.
+        core_offer: Optional custom core offer description for the evaluation prompt.
+        target_criteria: Optional custom ICP qualification criteria.
+        disqualified_criteria: Optional custom disqualification criteria.
         primary_model: Model name for primary inference.
         fallback_model: Model name for fallback inference.
 
@@ -215,18 +259,36 @@ async def evaluate_lead(
     if contacts_dict:
         contacts_context = f"\n### Discovered Contact Information:\n{json.dumps(contacts_dict, indent=2)}\n"
 
+    lang_instruction = ""
+    if language.lower() == "fr":
+        lang_instruction = "\n### Language Requirement:\nOutput summary, pros, cons, and suggested_angle strictly in French (Français)."
+    elif language.lower() == "ar":
+        lang_instruction = "\n### Language Requirement:\nOutput summary, pros, cons, and suggested_angle strictly in Arabic (العربية)."
+
+    angle_instruction = ""
+    if custom_angle:
+        angle_instruction = f"\n### Custom Value Proposition & Offer Focus:\n{custom_angle}\n"
+
     user_prompt = f"""Evaluate this target prospect for AI workflow automation services:
 
 Company Name: {company_name or "Unknown"}
 Website URL: {website_url or "Unknown"}
-{contacts_context}
+{contacts_context}{angle_instruction}{lang_instruction}
 ### Website Content (Markdown):
 {markdown_content[:6000]}
 
 Provide the evaluation in valid JSON matching the schema."""
 
+    # Dynamically build system prompt with custom prompt constraints
+    system_prompt = build_lead_evaluation_system_prompt(
+        core_offer=core_offer or (f"Custom Angle: {custom_angle}" if custom_angle else None),
+        target_criteria=target_criteria,
+        disqualified_criteria=disqualified_criteria,
+        language=language,
+    )
+
     messages = [
-        {"role": "system", "content": LEAD_EVALUATION_SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt},
     ]
 
@@ -249,6 +311,15 @@ Provide the evaluation in valid JSON matching the schema."""
         evaluation.decision_maker_title = decision_maker_title
     if decision_maker_email and not evaluation.decision_maker_email:
         evaluation.decision_maker_email = decision_maker_email
+    if not evaluation.location:
+        from discovery.geocoder import resolve_lead_location_label
+
+        evaluation.location = resolve_lead_location_label(
+            location=None,
+            company_name=evaluation.company_name or company_name,
+            website_url=evaluation.website_url or website_url,
+            summary=evaluation.summary or markdown_content[:500],
+        )
 
     return evaluation
 
@@ -257,6 +328,7 @@ async def generate_email_draft(
     lead: LeadEvaluation | dict[str, Any],
     sender_name: str = "Bader",
     offer_description: str | None = None,
+    language: str = "en",
     primary_model: str = DEFAULT_PRIMARY_MODEL,
     fallback_model: str = DEFAULT_FALLBACK_MODEL,
 ) -> EmailDraft:
@@ -266,6 +338,7 @@ async def generate_email_draft(
         lead: LeadEvaluation instance or dictionary containing lead analysis.
         sender_name: Name of the sender for the pitch signature.
         offer_description: Optional custom offer focus.
+        language: Language code ('en', 'fr', 'ar') for email copy.
         primary_model: Model name for primary inference.
         fallback_model: Model name for fallback inference.
 
@@ -283,6 +356,12 @@ async def generate_email_draft(
     pros = lead_dict.get("pros", [])
     suggested_angle = lead_dict.get("suggested_angle", "")
 
+    lang_instruction = ""
+    if language.lower() == "fr":
+        lang_instruction = "\n### Language Requirement:\nWrite the subject line and 3-sentence body strictly in French (Français)."
+    elif language.lower() == "ar":
+        lang_instruction = "\n### Language Requirement:\nWrite the subject line and 3-sentence body strictly in Arabic (العربية)."
+
     user_prompt = f"""Generate a 3-sentence cold outreach email for this qualified prospect:
 
 Target Company: {company_name}
@@ -292,7 +371,7 @@ Identified Automation Bottlenecks (Pros):
 {json.dumps(pros, indent=2)}
 Suggested Angle: {suggested_angle}
 Sender Name: {sender_name}
-Custom Offer Context: {offer_description or "Custom AI workflow & invoice/waybill automation"}
+Custom Offer Context: {offer_description or "Custom AI workflow & invoice/waybill automation"}{lang_instruction}
 
 Provide the email in valid JSON matching the schema."""
 

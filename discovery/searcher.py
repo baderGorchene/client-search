@@ -201,7 +201,7 @@ def extract_domain(url: str) -> str:
         return ""
 
 
-def is_disqualified_domain(url: str) -> bool:
+def is_disqualified_domain(url: str, custom_disqualified: set[str] | list[str] | None = None) -> bool:
     """Check if the given URL belongs to a directory, social platform, aggregator, or blog/job list."""
     try:
         parsed = urlparse(url if url.startswith(("http://", "https://")) else f"https://{url}")
@@ -218,6 +218,13 @@ def is_disqualified_domain(url: str) -> bool:
     for tld in DISQUALIFIED_TLDS:
         if domain.endswith(tld):
             return True
+
+    # Check dynamic user-provided disqualified domains
+    if custom_disqualified:
+        for cd in custom_disqualified:
+            clean_cd = cd.strip().lower().removeprefix("www.")
+            if clean_cd and (domain == clean_cd or domain.endswith(f".{clean_cd}")):
+                return True
 
     # Check explicit domain blocklist
     for disqualified in DISQUALIFIED_DOMAINS:
@@ -259,16 +266,64 @@ def clean_company_name_from_title(title: str, domain: str) -> str:
     return parts[0].strip() if parts else domain
 
 
-def _sync_ddgs_search(query: str, max_results: int) -> list[dict[str, Any]]:
+def generate_search_queries(
+    keyword: str,
+    location: str = "",
+    language: str = "en",
+) -> list[str]:
+    """Generate localized search queries based on keyword, location, and target language."""
+    loc = location.strip()
+    kw = keyword.strip()
+    lang = language.lower()
+
+    if lang == "fr":
+        if loc:
+            return [
+                f"{kw} à {loc} contact site web",
+                f"entreprise {kw} {loc} coordonnées",
+                f"société {kw} {loc} email",
+                f"meilleurs {kw} {loc}",
+            ]
+        return [
+            f"entreprise {kw} contact site web",
+            f"société {kw} coordonnées email",
+        ]
+    if lang == "ar":
+        if loc:
+            return [
+                f"شركة {kw} في {loc} تواصل موقع",
+                f"مكتب {kw} {loc} بريد الكتروني",
+                f"أفضل شركات {kw} في {loc}",
+                f"{kw} {loc} خدمات",
+            ]
+        return [
+            f"شركة {kw} تواصل موقع",
+            f"خدمات {kw} بريد الكتروني",
+        ]
+    # Default English
+    if loc:
+        return [
+            f"{kw} in {loc} contact website",
+            f"{kw} company {loc} email",
+            f"best {kw} services {loc}",
+            f"{loc} {kw} business contact",
+        ]
+    return [
+        f"{kw} company contact website",
+        f"{kw} business email contact",
+    ]
+
+
+def _sync_ddgs_search(query: str, max_results: int, region: str = "wt-wt") -> list[dict[str, Any]]:
     """Synchronous worker for DuckDuckGo search execution."""
     results: list[dict[str, Any]] = []
     try:
         with DDGS() as ddgs:
-            raw_results = ddgs.text(query, max_results=max_results)
+            raw_results = ddgs.text(query, region=region, max_results=max_results)
             if raw_results:
                 results.extend(raw_results)
             elif hasattr(ddgs, "_text_html"):
-                html_res = ddgs._text_html(query, None, None, max_results)
+                html_res = ddgs._text_html(query, region=region, max_results=max_results)
                 if html_res:
                     results.extend(html_res)
     except Exception as exc:  # noqa: BLE001
@@ -281,6 +336,8 @@ async def search_duckduckgo(
     max_results: int = 15,
     vertical: str = "",
     location: str = "",
+    language: str = "en",
+    disqualified_domains: set[str] | list[str] | None = None,
 ) -> list[DiscoveredProspect]:
     """Asynchronously execute DuckDuckGo search with domain filtering and deduplication.
 
@@ -289,12 +346,17 @@ async def search_duckduckgo(
         max_results: Maximum raw results to fetch before filtering.
         vertical: Optional ICP vertical label.
         location: Optional location query context.
+        language: Language code ('en', 'fr', 'ar').
+        disqualified_domains: Optional custom set/list of excluded domains.
 
     Returns:
         list[DiscoveredProspect]: Filtered and structured prospects.
     """
+    region_map = {"en": "us-en", "fr": "fr-fr", "ar": "xa-ar"}
+    region = region_map.get(language.lower(), "wt-wt")
+
     try:
-        raw_results = await asyncio.to_thread(_sync_ddgs_search, query, max_results)
+        raw_results = await asyncio.to_thread(_sync_ddgs_search, query, max_results, region)
     except Exception as exc:  # noqa: BLE001
         logger.warning("DuckDuckGo search failed for '%s': %s", query, exc)
         raw_results = []
@@ -307,7 +369,7 @@ async def search_duckduckgo(
         title = item.get("title", "")
         body = item.get("body", "")
 
-        if not href or is_disqualified_domain(href):
+        if not href or is_disqualified_domain(href, custom_disqualified=disqualified_domains):
             continue
 
         domain = extract_domain(href)
@@ -337,62 +399,49 @@ async def search_overpass(
     vertical: ICPVertical | str = ICPVertical.LOGISTICS,
     timeout_seconds: int = 25,
     client: httpx.AsyncClient | None = None,
+    disqualified_domains: set[str] | list[str] | None = None,
 ) -> list[DiscoveredProspect]:
-    """Query OpenStreetMap Overpass API for businesses with listed websites in an area.
-
-    Args:
-        city_or_area: City or region name (e.g., 'Chicago', 'Austin').
-        vertical: ICP vertical to filter office tags.
-        timeout_seconds: HTTP request timeout in seconds.
-        client: Optional pre-configured httpx.AsyncClient.
-
-    Returns:
-        list[DiscoveredProspect]: Discovered prospects with verified websites.
-    """
-    overpass_url = "https://overpass-api.de/api/interpreter"
-
-    tag_filter = '["office"~"logistics|freight|transport|customs|shipping"]'
+    """Search OpenStreetMap via Overpass API for registered business offices in a target city."""
+    tag_query = '["office"~"logistics|freight|transport|customs|shipping"]'
     if str(vertical) in (ICPVertical.REAL_ESTATE.value, "real_estate"):
-        tag_filter = '["office"~"estate_agent|property_management"]'
+        tag_query = '["office"~"estate_agent|property_management"]'
     elif str(vertical) in (ICPVertical.BOUTIQUE_AGENCIES.value, "boutique_agencies"):
-        tag_filter = '["office"~"advertising|marketing|consulting"]'
+        tag_query = '["office"~"advertising|marketing|consulting"]'
+    elif str(vertical) in (ICPVertical.ECOMMERCE.value, "ecommerce"):
+        tag_query = '["office"~"it|retail|logistics"]'
 
-    overpass_ql = f"""
-    [out:json][timeout:{timeout_seconds}];
-    area[name="{city_or_area}"][admin_level~"8|6"]->.searchArea;
-    (
-      node{tag_filter}(area.searchArea);
-      way{tag_filter}(area.searchArea);
-    );
-    out tags;
-    """
+    overpass_ql = f"""[out:json][timeout:{timeout_seconds}];
+area["name"="{city_or_area}"]->.searchArea;
+(
+  node{tag_query}(area.searchArea);
+  way{tag_query}(area.searchArea);
+);
+out center tags 30;"""
 
     prospects: list[DiscoveredProspect] = []
     seen_domains: set[str] = set()
 
-    should_close = False
-    http = client
-    if http is None:
-        http = httpx.AsyncClient(
-            timeout=timeout_seconds,
-            headers={"User-Agent": "ClientScoutingEngine/1.0 (LeadDiscovery; contact@domain.com)"},
-        )
-        should_close = True
+    http = client or httpx.AsyncClient(timeout=timeout_seconds)
+    should_close = client is None
 
     try:
-        response = await http.post(overpass_url, data={"data": overpass_ql})
+        response = await http.post(
+            "https://overpass-api.de/api/interpreter",
+            data={"data": overpass_ql},
+            headers={"User-Agent": "ClientSearchBot/1.0 (B2B Lead Discovery)"},
+        )
         if response.status_code == 200:
             data = response.json()
             elements = data.get("elements", [])
-            for elem in elements:
-                tags = elem.get("tags", {})
+            for el in elements:
+                tags = el.get("tags", {})
                 name = tags.get("name")
                 website = tags.get("website") or tags.get("contact:website") or tags.get("url")
 
                 if not name or not website:
                     continue
 
-                if is_disqualified_domain(website):
+                if is_disqualified_domain(website, custom_disqualified=disqualified_domains):
                     continue
 
                 domain = extract_domain(website)
@@ -422,40 +471,59 @@ async def search_overpass(
 
 
 async def discover_prospects(
-    vertical: ICPVertical = ICPVertical.LOGISTICS,
+    vertical: ICPVertical | str = ICPVertical.LOGISTICS,
     location: str = "Chicago",
     max_results: int = 15,
     enable_overpass: bool = True,
     custom_queries: list[str] | None = None,
     delay_between_queries: float = 0.4,
+    language: str = "en",
+    keywords: list[str] | str | None = None,
+    disqualified_domains: set[str] | list[str] | None = None,
 ) -> list[DiscoveredProspect]:
     """Coordinate multi-engine prospect discovery with intelligent query pacing and early-exit.
 
     Args:
-        vertical: Target business vertical from ICPVertical.
+        vertical: Target business vertical from ICPVertical or custom string.
         location: City, region, or metro area to target.
         max_results: Max target candidate prospects to return.
         enable_overpass: Whether to run concurrent Overpass geo lookup.
         custom_queries: Optional explicit search queries overriding default templates.
         delay_between_queries: Seconds to pause between sequential queries to prevent throttling.
+        language: Target search language ('en', 'fr', 'ar').
+        keywords: Optional custom search keyword(s) to query.
+        disqualified_domains: Optional list/set of excluded domains.
 
     Returns:
         list[DiscoveredProspect]: Unified, deduplicated list of candidate prospects.
     """
-    logger.info("Starting prospect discovery for vertical='%s', location='%s'", vertical.value, location)
+    vert_val = getattr(vertical, "value", str(vertical))
+    logger.info("Starting prospect discovery for vertical/keyword='%s', location='%s', language='%s'", keywords or vert_val, location, language)
 
-    queries = custom_queries
-    if not queries:
-        templates = VERTICAL_QUERIES.get(vertical, ["{location} business contact"])
-        queries = [t.format(location=location) for t in templates]
+    queries: list[str] = []
+    if custom_queries:
+        queries = custom_queries
+    elif keywords:
+        kw_list = [keywords] if isinstance(keywords, str) else keywords
+        for kw in kw_list:
+            queries.extend(generate_search_queries(keyword=kw, location=location, language=language))
+    else:
+        # Fallback to vertical templates or language generator
+        if language != "en":
+            queries = generate_search_queries(keyword=vert_val, location=location, language=language)
+        else:
+            templates = VERTICAL_QUERIES.get(vertical, ["{location} {vertical} business contact"])
+            queries = [t.format(location=location, vertical=vert_val) for t in templates]
 
     combined_prospects: list[DiscoveredProspect] = []
     seen_domains: set[str] = set()
 
-    # If Overpass is enabled, launch it in background while querying DuckDuckGo
+    # If Overpass is enabled and vertical is a standard ICPVertical, launch it in background
     overpass_task = None
-    if enable_overpass:
-        overpass_task = asyncio.create_task(search_overpass(city_or_area=location, vertical=vertical))
+    if enable_overpass and isinstance(vertical, ICPVertical):
+        overpass_task = asyncio.create_task(
+            search_overpass(city_or_area=location, vertical=vertical, disqualified_domains=disqualified_domains)
+        )
 
     # Sequentially execute search queries with polite pacing and early exit
     for i, q in enumerate(queries):
@@ -468,8 +536,10 @@ async def discover_prospects(
         prospects = await search_duckduckgo(
             query=q,
             max_results=max_results,
-            vertical=vertical.value,
+            vertical=vert_val,
             location=location,
+            language=language,
+            disqualified_domains=disqualified_domains,
         )
 
         for p in prospects:

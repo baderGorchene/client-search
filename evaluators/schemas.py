@@ -33,6 +33,7 @@ class LeadEvaluation(BaseModel):
     pros: list[str] = Field(..., max_length=6, description="Key workflow bottlenecks suitable for automation")
     cons: list[str] = Field(..., max_length=6, description="Potential friction points or risks")
     suggested_angle: str = Field(..., max_length=400, description="Specific pitch hook")
+    location: str = Field(default="", description="Detected geographic city and country (e.g. 'Tunis, Tunisia')")
 
     model_config = ConfigDict(extra="ignore")
 
@@ -93,6 +94,7 @@ class LeadRecord(BaseModel):
     pros: list[str] | None = Field(default=None, description="Automation opportunities")
     cons: list[str] | None = Field(default=None, description="Risk factors")
     suggested_angle: str | None = Field(default=None, description="Cold pitch hook")
+    location: str | None = Field(default=None, description="Company geographic city/country location")
     email_subject: str | None = Field(default=None, description="Approved email subject")
     email_body: str | None = Field(default=None, description="Approved email body")
     status: LeadStatus = Field(default=LeadStatus.PENDING_LEAD_REVIEW, description="Current workflow status")

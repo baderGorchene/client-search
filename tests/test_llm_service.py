@@ -274,3 +274,103 @@ async def test_generate_email_draft_all_fail(mocker):
             lead={"company_name": "Crash Co"},
             sender_name="Bader",
         )
+
+
+@pytest.mark.asyncio
+async def test_evaluate_lead_multilingual_french(mocker):
+    mock_eval = {
+        "company_name": "Logistique Paris Express",
+        "website_url": "https://parisexpress.fr",
+        "decision_maker_name": "Jean Dupont",
+        "decision_maker_title": "Directeur Général",
+        "decision_maker_email": "contact@parisexpress.fr",
+        "fit_score": 9,
+        "summary": "Entreprise de transport et logistique à Paris.",
+        "pros": ["Traitement manuel des bordereaux de livraison"],
+        "cons": ["Système ERP ancien"],
+        "suggested_angle": "Automatisation OCR des bordereaux et factures transport.",
+    }
+
+    mock_acompletion = mocker.patch(
+        "litellm.acompletion",
+        new_callable=AsyncMock,
+        return_value=create_mock_litellm_response(json.dumps(mock_eval)),
+    )
+
+    evaluation = await evaluate_lead(
+        markdown_content="# Logistique Paris\nTransport express et fret...",
+        company_name="Logistique Paris Express",
+        website_url="https://parisexpress.fr",
+        language="fr",
+        custom_angle="Automatisation OCR des bordereaux",
+    )
+
+    assert isinstance(evaluation, LeadEvaluation)
+    assert evaluation.fit_score == 9
+    assert "Paris" in evaluation.company_name
+
+    # Check user prompt passed language requirement
+    call_messages = mock_acompletion.call_args[1]["messages"]
+    user_prompt = call_messages[1]["content"]
+    assert "French" in user_prompt
+    assert "Automatisation OCR" in user_prompt
+
+
+def test_build_lead_evaluation_system_prompt_custom_constraints():
+    """Verify custom prompt constraints are cleanly injected into the system prompt."""
+    from evaluators.llm_service import build_lead_evaluation_system_prompt
+
+    prompt = build_lead_evaluation_system_prompt(
+        core_offer="Custom CRM sync and WhatsApp booking bots",
+        target_criteria="Dental clinics and cosmetic surgeons with 3+ locations",
+        disqualified_criteria="Single practitioner dentists without front desk staff",
+        language="en",
+    )
+
+    assert "Custom CRM sync and WhatsApp booking bots" in prompt
+    assert "Dental clinics and cosmetic surgeons with 3+ locations" in prompt
+    assert "Single practitioner dentists without front desk staff" in prompt
+
+
+@pytest.mark.asyncio
+async def test_evaluate_lead_with_custom_prompt_constraints(mocker):
+    """Verify evaluate_lead uses custom prompt constraints in the system prompt."""
+    mock_eval = {
+        "company_name": "SolarTech Direct",
+        "website_url": "https://solartechdirect.com",
+        "decision_maker_name": "David Clark",
+        "decision_maker_title": "Head of Operations",
+        "decision_maker_email": "dave@solartechdirect.com",
+        "fit_score": 9,
+        "summary": "Commercial solar EPC contractor with 15 installation crews.",
+        "pros": ["Permitting paperwork takes 12 hours per site"],
+        "cons": ["High utility compliance friction"],
+        "suggested_angle": "Automated solar permitting and utility packet generation.",
+    }
+
+    mock_acompletion = mocker.patch(
+        "litellm.acompletion",
+        new_callable=AsyncMock,
+        return_value=create_mock_litellm_response(json.dumps(mock_eval)),
+    )
+
+    evaluation = await evaluate_lead(
+        markdown_content="# SolarTech Direct\nCommercial solar EPC...",
+        company_name="SolarTech Direct",
+        website_url="https://solartechdirect.com",
+        core_offer="Automated solar permitting CAD & utility paperwork extraction",
+        target_criteria="Commercial & residential solar EPCs with 5+ crews",
+        disqualified_criteria="DIY solar kit sellers and solar repair handymen",
+        language="en",
+    )
+
+    assert isinstance(evaluation, LeadEvaluation)
+    assert evaluation.fit_score == 9
+
+    # Verify custom constraints were injected into system prompt message
+    call_messages = mock_acompletion.call_args[1]["messages"]
+    system_prompt = call_messages[0]["content"]
+    assert "Automated solar permitting CAD" in system_prompt
+    assert "Commercial & residential solar EPCs with 5+ crews" in system_prompt
+    assert "DIY solar kit sellers and solar repair handymen" in system_prompt
+

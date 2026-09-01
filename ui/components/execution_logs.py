@@ -1,340 +1,261 @@
-"""Live execution nodes and Mermaid-style pipeline DAG component."""
+"""Live execution log feeds and tabbed pipeline monitor with ephemeral notifications."""
 
 import reflex as rx
 
 from ui.state import AppState, PipelineNode
 
 
-def _log_line_item(line: rx.Var[str]) -> rx.Component:
-    """Render an individual execution step log line."""
-    return rx.hstack(
-        rx.text(
-            line,
-            size="1",
-            color=rx.match(
-                line.contains("❌"),
-                (True, "#f87171"),
+def _ephemeral_log_item(line: rx.Var[str]) -> rx.Component:
+    """Render an individual log entry as a styled ephemeral notification card."""
+    border_color = rx.match(
+        line.contains("❌") | line.contains("failed") | line.contains("Disqualified"),
+        (True, "#ef4444"),
+        rx.match(
+            line.contains("✅") | line.contains("COMPLETE") | line.contains("resolved") | line.contains("Saving"),
+            (True, "#10b981"),
+            rx.match(
+                line.contains("🤖") | line.contains("Gemini") | line.contains("Evaluation"),
+                (True, "#a855f7"),
                 rx.match(
-                    line.contains("✅"),
-                    (True, "#4ade80"),
+                    line.contains("🔍") | line.contains("Searching") | line.contains("Discovered"),
+                    (True, "#38bdf8"),
                     rx.match(
-                        line.contains("Step"),
-                        (True, "#60a5fa"),
-                        "#cbd5e1",
+                        line.contains("⚠️") | line.contains("⏭️") | line.contains("Skipping"),
+                        (True, "#f59e0b"),
+                        "#3b82f6",
                     ),
                 ),
             ),
-            font_family="ui-monospace, monospace",
         ),
-        spacing="1",
-        align="center",
+    )
+
+    icon_name = rx.match(
+        line.contains("❌"),
+        (True, "circle-alert"),
+        rx.match(
+            line.contains("✅"),
+            (True, "circle-check"),
+            rx.match(
+                line.contains("🤖"),
+                (True, "bot"),
+                rx.match(
+                    line.contains("🔍"),
+                    (True, "search"),
+                    rx.match(
+                        line.contains("🧹"),
+                        (True, "filter"),
+                        rx.match(
+                            line.contains("🌐"),
+                            (True, "globe"),
+                            rx.match(
+                                line.contains("✉️"),
+                                (True, "mail"),
+                                rx.match(
+                                    line.contains("📱"),
+                                    (True, "send"),
+                                    "terminal",
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    return rx.box(
+        rx.hstack(
+            rx.icon(icon_name, size=15, color=border_color),
+            rx.text(
+                line,
+                size="1",
+                color="#f1f5f9",
+                font_family="ui-monospace, monospace",
+                word_break="break-word",
+            ),
+            spacing="2",
+            align="center",
+            width="100%",
+        ),
+        background="rgba(15, 23, 42, 0.8)",
+        border_left=f"3px solid {border_color}",
+        border_top="1px solid rgba(51, 65, 85, 0.4)",
+        border_right="1px solid rgba(51, 65, 85, 0.4)",
+        border_bottom="1px solid rgba(51, 65, 85, 0.4)",
+        border_radius="0.375rem",
+        padding="0.5rem 0.75rem",
+        margin_bottom="0.375rem",
         width="100%",
+        box_shadow="0 1px 3px rgba(0, 0, 0, 0.3)",
     )
 
 
-def _mermaid_node_card(node: rx.Var[PipelineNode], step_tag: str) -> rx.Component:
-    """Render an individual Mermaid-style flowchart node with active log stream."""
-    return rx.box(
-        rx.vstack(
-            # Node Header Bar
-            rx.hstack(
-                rx.hstack(
-                    rx.badge(
-                        step_tag,
-                        color_scheme="gray",
-                        variant="surface",
-                        size="1",
-                        font_family="monospace",
-                    ),
-                    # Node State Icon: check / spinner / error / clock
-                    rx.cond(
-                        node.status == "completed",
-                        rx.icon("circle-check", color="#22c55e", size=18),
-                        rx.cond(
-                            node.status == "active",
-                            rx.spinner(size="1", color="blue"),
-                            rx.cond(
-                                node.status == "error",
-                                rx.icon("circle-alert", color="#ef4444", size=18),
-                                rx.icon("clock", color="#64748b", size=18),
-                            ),
-                        ),
-                    ),
-                    rx.vstack(
-                        rx.text(
-                            node.title,
-                            size="2",
-                            weight="bold",
-                            color=rx.cond(node.status == "pending", "#94a3b8", "white"),
-                        ),
-                        rx.text(node.subtitle, size="1", color="#64748b"),
-                        spacing="0",
-                        align="start",
-                    ),
-                    spacing="2",
-                    align="center",
-                ),
-                # Status Badge & Completed Time
+def _step_tab_trigger(node: rx.Var[PipelineNode], tab_value: str) -> rx.Component:
+    """Render a tab trigger with live status icon and completion badge."""
+    return rx.tabs.trigger(
+        rx.hstack(
+            rx.cond(
+                node.status == "completed",
+                rx.icon("circle-check", color="#22c55e", size=14),
                 rx.cond(
-                    node.status == "completed",
-                    rx.badge(
-                        rx.hstack(
-                            rx.icon("check", size=10),
-                            rx.text(node.completed_time),
-                            spacing="1",
-                            align="center",
-                        ),
-                        color_scheme="green",
-                        variant="soft",
-                        size="1",
-                    ),
+                    node.status == "active",
+                    rx.spinner(size="1", color="blue"),
                     rx.cond(
-                        node.status == "active",
-                        rx.badge(
-                            "ACTIVE", color_scheme="blue", variant="solid", size="1"
-                        ),
-                        rx.cond(
-                            node.status == "error",
-                            rx.badge(
-                                "FAILED", color_scheme="red", variant="solid", size="1"
-                            ),
-                            rx.badge(
-                                "PENDING",
-                                color_scheme="gray",
-                                variant="surface",
-                                size="1",
-                            ),
-                        ),
+                        node.status == "error",
+                        rx.icon("circle-alert", color="#ef4444", size=14),
+                        rx.icon("clock", color="#64748b", size=14),
                     ),
+                ),
+            ),
+            rx.text(node.title, size="1", weight="medium"),
+            rx.cond(
+                node.status == "completed",
+                rx.badge(node.completed_time, color_scheme="green", variant="soft", size="1", font_size="9px"),
+                rx.cond(
+                    node.status == "active",
+                    rx.badge("RUNNING", color_scheme="blue", variant="solid", size="1", font_size="9px"),
+                    rx.text(""),
+                ),
+            ),
+            spacing="1",
+            align="center",
+        ),
+        value=tab_value,
+    )
+
+
+def _step_tab_content(node: rx.Var[PipelineNode], tab_value: str) -> rx.Component:
+    """Render the log stream and stage metadata for a specific pipeline step tab."""
+    return rx.tabs.content(
+        rx.vstack(
+            # Stage Header Banner
+            rx.hstack(
+                rx.vstack(
+                    rx.hstack(
+                        rx.heading(node.title, size="2", weight="bold", color="white"),
+                        rx.cond(
+                            node.status == "completed",
+                            rx.badge("STAGE COMPLETED", color_scheme="green", variant="soft", size="1"),
+                            rx.cond(
+                                node.status == "active",
+                                rx.badge("ACTIVE STREAMING", color_scheme="blue", variant="solid", size="1"),
+                                rx.badge("PENDING", color_scheme="gray", variant="surface", size="1"),
+                            ),
+                        ),
+                        spacing="2",
+                        align="center",
+                    ),
+                    rx.text(node.subtitle, size="1", color="#94a3b8"),
+                    spacing="0",
+                    align="start",
                 ),
                 justify="between",
                 align="center",
                 width="100%",
+                padding_bottom="0.5rem",
+                border_bottom="1px solid #1e293b",
+                margin_bottom="0.5rem",
             ),
-            # Node Body / Embedded Real-time Logs
+            # Stage Log Feed or Empty State
             rx.cond(
-                node.status == "active",
+                node.logs.length() > 0,
                 rx.box(
                     rx.vstack(
-                        rx.foreach(node.logs, _log_line_item),
+                        rx.foreach(node.logs, _ephemeral_log_item),
                         spacing="1",
                         align="start",
                         width="100%",
                     ),
-                    background="#020617",
-                    border="1px solid #1e3a8a",
-                    border_radius="0.375rem",
-                    padding="0.5rem",
-                    max_height="140px",
+                    max_height="280px",
                     overflow_y="auto",
                     width="100%",
-                    margin_top="0.375rem",
+                    padding_right="0.25rem",
                 ),
-                rx.cond(
-                    (node.status == "completed") & (node.logs.length() > 0),
-                    rx.box(
-                        rx.vstack(
-                            rx.foreach(node.logs, _log_line_item),
-                            spacing="1",
-                            align="start",
-                            width="100%",
-                        ),
-                        background="#02061780",
-                        border="1px solid #1e293b",
-                        border_radius="0.375rem",
-                        padding="0.5rem",
-                        max_height="90px",
-                        overflow_y="auto",
-                        width="100%",
-                        margin_top="0.25rem",
-                    ),
-                    rx.box(
+                rx.box(
+                    rx.hstack(
+                        rx.icon("clock", size=18, color="#64748b"),
                         rx.text(
-                            "Waiting for upstream node signal...",
+                            "Awaiting upstream execution... Logs will stream here when this stage activates.",
                             size="1",
-                            color="#475569",
+                            color="#64748b",
                             font_style="italic",
                         ),
-                        padding_top="0.25rem",
+                        spacing="2",
+                        align="center",
                     ),
+                    background="#0b1120",
+                    border="1px dashed #1e293b",
+                    border_radius="0.5rem",
+                    padding="1.25rem",
+                    width="100%",
+                    text_align="center",
                 ),
             ),
             spacing="2",
             align="start",
             width="100%",
         ),
-        background=rx.match(
-            node.status,
-            ("active", "rgba(15, 23, 42, 0.95)"),
-            ("completed", "rgba(15, 23, 42, 0.85)"),
-            ("error", "rgba(30, 10, 10, 0.85)"),
-            "rgba(15, 23, 42, 0.4)",
-        ),
-        border=rx.match(
-            node.status,
-            ("active", "2px solid #3b82f6"),
-            ("completed", "1.5px solid #10b981"),
-            ("error", "1.5px solid #ef4444"),
-            "1.5px dashed #334155",
-        ),
-        border_radius="0.75rem",
-        padding="1rem",
+        value=tab_value,
+        padding_top="0.75rem",
         width="100%",
-        min_width="250px",
-        flex="1",
-        opacity=rx.cond(node.status == "pending", "0.6", "1.0"),
-        box_shadow=rx.cond(
-            node.status == "active", "0 0 20px rgba(59, 130, 246, 0.35)", "none"
-        ),
-    )
-
-
-def _horizontal_edge(
-    source_node: rx.Var[PipelineNode], label: str = ""
-) -> rx.Component:
-    """Render an edge connector arrow aligned horizontally with the node header bar."""
-    edge_color = rx.match(
-        source_node.status,
-        ("completed", "#10b981"),
-        ("active", "#3b82f6"),
-        "#334155",
-    )
-    return rx.vstack(
-        rx.cond(
-            label != "",
-            rx.badge(
-                label,
-                variant="surface",
-                color_scheme="gray",
-                size="1",
-                font_family="monospace",
-                font_size="9px",
-            ),
-            rx.text(""),
-        ),
-        rx.hstack(
-            rx.box(
-                width="28px",
-                height="2px",
-                background=edge_color,
-            ),
-            rx.icon(
-                "chevron-right",
-                size=14,
-                color=edge_color,
-                stroke_width=2.5,
-                margin_left="-4px",
-            ),
-            spacing="0",
-            align="center",
-        ),
-        spacing="1",
-        align="center",
-        justify="center",
-        margin_top="1.25rem",
-        min_width="44px",
-    )
-
-
-def _stage_bridge(source_node: rx.Var[PipelineNode]) -> rx.Component:
-    """Render a full-width stage transition rail between diagram rows."""
-    bridge_color = rx.match(
-        source_node.status,
-        ("completed", "#10b981"),
-        ("active", "#3b82f6"),
-        "#334155",
-    )
-    return rx.hstack(
-        rx.box(height="1px", flex="1", background=bridge_color, opacity="0.4"),
-        rx.hstack(
-            rx.icon("arrow-down", size=14, color=bridge_color),
-            rx.badge(
-                "STAGE 1 → STAGE 2 : CONTACT RESOLUTION & REASONING",
-                variant="surface",
-                color_scheme="gray",
-                size="1",
-                font_size="10px",
-                font_family="monospace",
-            ),
-            rx.icon("arrow-down", size=14, color=bridge_color),
-            spacing="2",
-            align="center",
-            padding_x="1rem",
-            padding_y="0.25rem",
-            border=rx.match(
-                source_node.status,
-                ("completed", "1px solid #10b98140"),
-                ("active", "1px solid #3b82f640"),
-                "1px solid #334155",
-            ),
-            border_radius="9999px",
-            background="#0b1120",
-        ),
-        rx.box(height="1px", flex="1", background=bridge_color, opacity="0.4"),
-        spacing="2",
-        align="center",
-        width="100%",
-        margin_y="0.75rem",
     )
 
 
 def execution_logs_console() -> rx.Component:
-    """Render the real-time Mermaid-style connected DAG pipeline diagram."""
+    """Render the tabbed real-time execution log monitor with ephemeral step notifications."""
     return rx.card(
         rx.vstack(
-            # Graph Header Toolbar
+            # Monitor Header Toolbar
             rx.hstack(
                 rx.hstack(
-                    rx.icon("git-fork", size=18, color="#38bdf8"),
-                    rx.heading(
-                        "Autonomous Pipeline Flowchart",
-                        size="3",
-                        weight="bold",
-                        color="white",
-                    ),
-                    rx.badge(
-                        "graph LR", color_scheme="cyan", variant="surface", size="1"
-                    ),
+                    rx.icon("terminal", size=18, color="#38bdf8"),
+                    rx.heading("Autonomous Execution Logs & Stage Feeds", size="3", weight="bold", color="white"),
                     rx.cond(
                         AppState.is_scouting,
                         rx.hstack(
                             rx.spinner(size="1"),
-                            rx.badge(
-                                "CYCLE IN PROGRESS",
-                                color_scheme="blue",
-                                variant="solid",
-                                size="2",
-                            ),
+                            rx.badge("CYCLE ACTIVE", color_scheme="blue", variant="solid", size="2"),
                             spacing="2",
                             align="center",
                         ),
-                        rx.badge(
-                            "6 CONNECTED NODES",
-                            color_scheme="gray",
-                            variant="surface",
-                            size="2",
-                        ),
+                        rx.badge("IDLE", color_scheme="gray", variant="surface", size="2"),
                     ),
                     spacing="2",
                     align="center",
                 ),
-                rx.button(
-                    rx.hstack(
-                        rx.icon("rotate-ccw", size=13),
-                        rx.text("Reset Graph"),
-                        spacing="1",
-                        align="center",
+                rx.hstack(
+                    rx.button(
+                        rx.hstack(
+                            rx.icon("sliders-horizontal", size=13),
+                            rx.text("Configure Campaign"),
+                            spacing="1",
+                            align="center",
+                        ),
+                        variant="soft",
+                        color_scheme="blue",
+                        size="1",
+                        on_click=AppState.open_search_modal,
                     ),
-                    variant="ghost",
-                    color_scheme="gray",
-                    size="1",
-                    on_click=AppState.reset_pipeline_nodes,
+                    rx.button(
+                        rx.hstack(
+                            rx.icon("rotate-ccw", size=13),
+                            rx.text("Clear Logs"),
+                            spacing="1",
+                            align="center",
+                        ),
+                        variant="ghost",
+                        color_scheme="gray",
+                        size="1",
+                        on_click=AppState.clear_execution_logs,
+                    ),
+                    spacing="2",
+                    align="center",
                 ),
                 justify="between",
                 align="center",
                 width="100%",
             ),
-            # Active Stage Status Banner (if executing)
+            # Active Cycle Status Banner
             rx.cond(
                 AppState.is_scouting & (AppState.current_step_description != ""),
                 rx.box(
@@ -356,43 +277,76 @@ def execution_logs_console() -> rx.Component:
                     width="100%",
                 ),
             ),
-            # Connected Mermaid Diagram Canvas
-            rx.box(
-                rx.vstack(
-                    # Row 1: Steps 1 -> 2 -> 3
-                    rx.hstack(
-                        _mermaid_node_card(AppState.pipeline_nodes[0], "#01"),
-                        _horizontal_edge(AppState.pipeline_nodes[0], "candidates"),
-                        _mermaid_node_card(AppState.pipeline_nodes[1], "#02"),
-                        _horizontal_edge(AppState.pipeline_nodes[1], "filtered"),
-                        _mermaid_node_card(AppState.pipeline_nodes[2], "#03"),
-                        width="100%",
-                        align="start",
-                        justify="between",
+            # Tabbed Stage Feeds
+            rx.tabs.root(
+                rx.tabs.list(
+                    # Tab 0: All Live Streams
+                    rx.tabs.trigger(
+                        rx.hstack(
+                            rx.icon("activity", size=14, color="#38bdf8"),
+                            rx.text("All Feeds", size="1", weight="medium"),
+                            rx.badge(
+                                AppState.execution_logs.length(),
+                                color_scheme="blue",
+                                variant="surface",
+                                size="1",
+                                font_size="9px",
+                            ),
+                            spacing="1",
+                            align="center",
+                        ),
+                        value="all",
                     ),
-                    # Stage Bridge between Row 1 and Row 2
-                    _stage_bridge(AppState.pipeline_nodes[2]),
-                    # Row 2: Steps 4 -> 5 -> 6
-                    rx.hstack(
-                        _mermaid_node_card(AppState.pipeline_nodes[3], "#04"),
-                        _horizontal_edge(AppState.pipeline_nodes[3], "valid SMTP"),
-                        _mermaid_node_card(AppState.pipeline_nodes[4], "#05"),
-                        _horizontal_edge(AppState.pipeline_nodes[4], "score >= 7"),
-                        _mermaid_node_card(AppState.pipeline_nodes[5], "#06"),
-                        width="100%",
-                        align="start",
-                        justify="between",
-                    ),
-                    spacing="2",
+                    # Tabs 1 - 6: Pipeline Stages
+                    _step_tab_trigger(AppState.pipeline_nodes[0], "step_1"),
+                    _step_tab_trigger(AppState.pipeline_nodes[1], "step_2"),
+                    _step_tab_trigger(AppState.pipeline_nodes[2], "step_3"),
+                    _step_tab_trigger(AppState.pipeline_nodes[3], "step_4"),
+                    _step_tab_trigger(AppState.pipeline_nodes[4], "step_5"),
+                    _step_tab_trigger(AppState.pipeline_nodes[5], "step_6"),
+                    overflow_x="auto",
                     width="100%",
                 ),
-                background="radial-gradient(#1e293b 1.5px, #0a0f1d 1.5px)",
-                background_size="20px 20px",
-                border="1px solid #1e293b",
-                border_radius="0.75rem",
-                padding="1.25rem",
+                # Content for All Feeds
+                rx.tabs.content(
+                    rx.box(
+                        rx.cond(
+                            AppState.execution_logs.length() > 0,
+                            rx.vstack(
+                                rx.foreach(AppState.execution_logs, _ephemeral_log_item),
+                                spacing="1",
+                                align="start",
+                                width="100%",
+                            ),
+                            rx.box(
+                                rx.text(
+                                    "No execution logs recorded yet. Launch a prospecting campaign to start streaming.",
+                                    size="1",
+                                    color="#64748b",
+                                    font_style="italic",
+                                ),
+                                padding="1rem",
+                                text_align="center",
+                            ),
+                        ),
+                        max_height="280px",
+                        overflow_y="auto",
+                        width="100%",
+                        padding_top="0.75rem",
+                    ),
+                    value="all",
+                    width="100%",
+                ),
+                # Content for Individual Step Tabs
+                _step_tab_content(AppState.pipeline_nodes[0], "step_1"),
+                _step_tab_content(AppState.pipeline_nodes[1], "step_2"),
+                _step_tab_content(AppState.pipeline_nodes[2], "step_3"),
+                _step_tab_content(AppState.pipeline_nodes[3], "step_4"),
+                _step_tab_content(AppState.pipeline_nodes[4], "step_5"),
+                _step_tab_content(AppState.pipeline_nodes[5], "step_6"),
+                value=AppState.active_log_tab,
+                on_change=AppState.set_active_log_tab,
                 width="100%",
-                overflow_x="auto",
             ),
             spacing="3",
             align="start",

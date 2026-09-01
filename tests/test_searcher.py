@@ -183,3 +183,28 @@ async def test_discover_prospects_aggregation():
         assert len(results) == 2
         assert results[0].company_name == "Alpha"
         assert results[1].company_name == "Beta"
+
+
+def test_generate_search_queries_multilingual():
+    """Verify localized query generation for English, French, and Arabic."""
+    from discovery.searcher import generate_search_queries
+
+    en_queries = generate_search_queries("freight forwarders", "Chicago", language="en")
+    assert len(en_queries) >= 2
+    assert any("Chicago" in q and "contact" in q for q in en_queries)
+
+    fr_queries = generate_search_queries("panneaux solaires", "Paris", language="fr")
+    assert len(fr_queries) >= 2
+    assert any("Paris" in q and ("contact" in q or "entreprise" in q) for q in fr_queries)
+
+    ar_queries = generate_search_queries("شحن لوجستي", "دبي", language="ar")
+    assert len(ar_queries) >= 2
+    assert any("دبي" in q and ("شركة" in q or "موقع" in q) for q in ar_queries)
+
+
+def test_dynamic_disqualified_domains():
+    """Verify user-defined custom disqualified domains are filtered properly."""
+    assert is_disqualified_domain("https://exampledirectory.com", custom_disqualified=["exampledirectory.com"]) is True
+    assert is_disqualified_domain("https://sub.myblocklist.org/biz", custom_disqualified=["myblocklist.org"]) is True
+    assert is_disqualified_domain("https://validcompany.com", custom_disqualified=["otherdomain.com"]) is False
+
